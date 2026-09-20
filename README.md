@@ -65,6 +65,10 @@ It asserts the two things a reservation has to get right: a request that can be 
 and is quoted with its fees, and seats that are already held are refused. Against the baseline it
 passes.
 
+The job holds seats C11 and C12 under a fixed idempotency key, so every run returns the same
+reservation rather than consuming more of the show. That is why it can be run repeatedly, and why
+the second request in it is always a genuine conflict.
+
 ## Step 3: Run A Lesson
 
 ```bash
@@ -110,6 +114,11 @@ This one really is a refactor. The job passes, identical to the baseline. A veri
 only ever fails teaches nothing, so the counter-example matters as much as the regression.
 
 `lessons/README.md` lists what each lesson does and what it looks like in review.
+
+The repository also ships Smart Tests under `smart-tests/`, which compare a sandbox's responses
+against the baseline rather than asserting on them. They need Smart Test Runners enabled for your
+cluster under **Platform → Managed Runners**, and at least one runner pod actually running; the
+guard job above needs only a Job Runner Group.
 
 ## Notes For Extending This
 

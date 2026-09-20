@@ -39,6 +39,9 @@ reviews:
   review_details: true
   auto_review:
     enabled: true
+    # Without this, CodeRabbit reviews only pull requests that target the
+    # default branch. Set it when your pull requests stack onto other branches.
+    base_branches: [".*"]
 
   pre_merge_checks:
     custom_checks:
@@ -76,17 +79,21 @@ reviews:
           authenticated.
 
           1. signadot cluster list, to confirm the CLI works.
-          2. Create the sandbox for this pull request:
+          2. Work out which service this pull request changes and which image
+             tag to run. The changed file under pkg/ names the service. The
+             image tag is the lesson name, which is the branch name with its
+             "boxoffice-" prefix removed.
+          3. Create the sandbox for this pull request:
              signadot sandbox apply -f signadot/pr-sandbox.yaml
-               --set cluster=$SIGNADOT_CLUSTER
-               --set service=$BOXOFFICE_SERVICE
-               --set image=$BOXOFFICE_IMAGE_TAG
+               --set cluster="$SIGNADOT_CLUSTER"
+               --set service=<the service from step 2>
+               --set image=<the tag from step 2>
                --set repo=<owner/repo> --set pr=<this pull request's number>
                --wait-timeout 5m
-          3. Run the guard job against it:
+          4. Run the guard job against it:
              signadot job submit -f signadot/reservation-guard-job.yaml
                --set sandbox=<the sandbox name>
-               --set runnerGroup=$SIGNADOT_RUNNER_GROUP --attach
+               --set runnerGroup="$SIGNADOT_RUNNER_GROUP" --attach
 
           Leave the sandbox running; the review reads it afterwards.
 

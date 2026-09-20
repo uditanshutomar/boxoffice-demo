@@ -15,8 +15,10 @@ spec:
     demo: boxoffice
     signadot/github-repo: "@{repo}"
     signadot/github-pull-request: "@{pr}"
+  # Long enough that a reader working through a tutorial does not lose the
+  # sandbox midway and see a check fail for the wrong reason.
   ttl:
-    duration: 2h
+    duration: 8h
   forks:
     - forkOf:
         kind: Deployment

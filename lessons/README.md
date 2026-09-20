@@ -51,5 +51,7 @@ that reads as an improvement. Two rules hold it together:
 2. **Justify it in a comment.** A regression that announces itself teaches nothing. The comment is
    what makes a reviewer reading only the diff agree with the change.
 
-The catalogue of lessons still to build — `enum-widened`, `money-float`, `idempotency-dropped`,
-`hold-never-expires`, `cache-stale`, `retry-masks-failure` — is in the design sketch.
+Good candidates for the next one: a status enum whose casing changes, money moved to floating
+point, an idempotency guard removed as redundant, a cache key that loses a dimension, or a retry
+wrapper that returns the last good response on error. Each is invisible in a diff and loud at
+runtime, which is the only rule that matters here.

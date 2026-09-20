@@ -55,8 +55,25 @@ app.post('/reservations', async (req, res, next) => {
   try {
     await client.query('begin')
 
+    // A hold that has lapsed frees its seats. Doing this on the way in keeps
+    // the rule in one place and means no background job has to be running for
+    // the invariant to hold.
+    await client.query(
+      `update seats s set status = 'free'
+         from reservations r
+        where r.status = 'held' and r.expires_at <= now()
+          and s.show_id = r.show_id and s.seat = any(r.seats)`
+    )
+    await client.query(
+      `update reservations set status = 'expired'
+        where status = 'held' and expires_at <= now()`
+    )
+
+    // Only a live hold counts as the same reservation. Once a hold has lapsed
+    // the same idempotency key is free to take the seats again.
     const existing = await client.query(
-      `select reservation_id, seats, status, expires_at from reservations where reservation_id = $1`,
+      `select reservation_id, seats, status, expires_at
+         from reservations where reservation_id = $1 and status = 'held'`,
       [id]
     )
     if (existing.rowCount > 0) {
@@ -93,7 +110,10 @@ app.post('/reservations', async (req, res, next) => {
     )
     await client.query(
       `insert into reservations (reservation_id, show_id, seats, status, expires_at)
-       values ($1, $2, $3, 'held', $4)`,
+       values ($1, $2, $3, 'held', $4)
+       on conflict (reservation_id) do update
+          set show_id = excluded.show_id, seats = excluded.seats,
+              status = 'held', expires_at = excluded.expires_at`,
       [id, showId, seats, expiresAt]
     )
     await client.query('commit')

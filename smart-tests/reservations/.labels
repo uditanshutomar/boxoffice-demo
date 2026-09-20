@@ -1,2 +1,2 @@
-app: boxoffice
-service: storefront
+app=boxoffice
+service=storefront
