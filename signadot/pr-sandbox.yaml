@@ -1,0 +1,32 @@
+# The sandbox a pull request gets. Identical to lesson-sandbox.yaml apart from
+# the GitHub labels, which are how a reviewer finds the sandbox that belongs to
+# a pull request. Signadot requires both labels together, and checks that the
+# pull request exists.
+#
+# Usage:
+#   signadot sandbox apply -f signadot/pr-sandbox.yaml \
+#     --set cluster=<cluster> --set service=storefront --set image=<tag> \
+#     --set repo=<owner/repo> --set pr=<number>
+name: "pr-@{pr}-@{service}"
+spec:
+  cluster: "@{cluster}"
+  description: "boxoffice @{service} from pull request @{pr}"
+  labels:
+    demo: boxoffice
+    signadot/github-repo: "@{repo}"
+    signadot/github-pull-request: "@{pr}"
+  ttl:
+    duration: 2h
+  forks:
+    - forkOf:
+        kind: Deployment
+        namespace: boxoffice
+        name: "@{service}"
+      customizations:
+        images:
+          - image: "signadot/boxoffice-demo-@{service}:@{image}"
+            container: "@{service}"
+  defaultRouteGroup:
+    endpoints:
+      - name: storefront
+        target: http://storefront.boxoffice.svc:8080

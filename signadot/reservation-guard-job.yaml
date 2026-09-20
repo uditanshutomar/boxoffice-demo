@@ -1,0 +1,54 @@
+# The contract a reservation has to keep: a valid request holds seats and is
+# quoted with its fees, and seats that are already held are refused. Both
+# assertions pass against the baseline and fail against a lesson that breaks
+# them.
+#
+# Usage:
+#   signadot job submit -f signadot/reservation-guard-job.yaml \
+#     --set sandbox=<sandbox-name> --attach
+spec:
+  namePrefix: reservation-guard
+  runnerGroup: "@{runnerGroup}"
+  script: |
+    #!/bin/sh
+    base=http://storefront.boxoffice.svc:8080
+    echo "sandbox=${SIGNADOT_SANDBOX_NAME:-baseline}"
+
+    # The guard owns these seats. The request is idempotent, so it returns the
+    # same reservation on every run rather than consuming more of the show.
+    code=$(curl -s -o /tmp/hold.json -w '%{http_code}' -X POST "$base/reservations" \
+      -H 'content-type: application/json' \
+      -d '{"showId":"show-1","seats":["C11","C12"],"currency":"USD","idempotencyKey":"guard-hold"}')
+    echo "POST /reservations (guard seats) -> HTTP $code $(cat /tmp/hold.json)"
+    if [ "$code" != "201" ]; then
+      echo "FAIL: a reservation that can be served must return 201"
+      exit 1
+    fi
+    for field in reservationId status seats expiresAt; do
+      if ! grep -q "\"$field\"" /tmp/hold.json; then
+        echo "FAIL: the reservation is missing $field."
+        echo "      The caller cannot tell what was held or when the hold lapses."
+        exit 1
+      fi
+    done
+    if ! grep -q '"fees"' /tmp/hold.json; then
+      echo "FAIL: the quote no longer carries fees, so the total understates the price."
+      exit 1
+    fi
+
+    # Seats that are already held must be refused, not quoted.
+    code=$(curl -s -o /tmp/dup.json -w '%{http_code}' -X POST "$base/reservations" \
+      -H 'content-type: application/json' \
+      -d '{"showId":"show-1","seats":["C11","C12"],"currency":"USD","idempotencyKey":"guard-double"}')
+    echo "POST /reservations (seats held)  -> HTTP $code $(cat /tmp/dup.json)"
+    if [ "$code" -lt 400 ]; then
+      echo "FAIL: seats that are already held returned HTTP $code."
+      echo "      The caller is told the booking succeeded while holding nothing."
+      exit 1
+    fi
+
+    echo "PASS: reservations report conflicts and quotes carry their fees"
+  routingContext:
+    sandbox: "@{sandbox}"
+  trafficManager:
+    injectRoutingKey: auto

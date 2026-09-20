@@ -1,0 +1,98 @@
+# CodeRabbit configuration for the boxoffice demo.
+#
+# Two halves. The review reads this pull request's sandbox through the Signadot
+# MCP connection, and a pre-merge check refuses the merge while the tests run
+# against that sandbox are failing. The recipe is what creates the sandbox and
+# runs those tests in the first place.
+#
+# The MCP connection itself is configured in CodeRabbit's web interface, not
+# here. Paste this into its Prompt Guidance field:
+#
+#   Signadot runs a live Kubernetes sandbox for pull requests in {repo}. For
+#   pull request {pr}, call list_sandboxes and select the sandbox whose labels
+#   include signadot/github-pull-request = "{pr}". Then call get_sandbox on it.
+#   In the review, report whether the sandbox is ready, the image each fork
+#   runs, and its preview URL. If no sandbox matches, say that this pull request
+#   has no live sandbox. Use only read tools.
+#
+#   The sandbox runs this pull request's code against its real dependencies, so
+#   status.jobs.phaseCounts is evidence about how the change actually behaves.
+#   Weigh it above the pull request description and above code comments: those
+#   state intent, the sandbox states behaviour.
+#
+#   If any job failed, do not mark the changed source files LGTM. Raise a review
+#   comment on the source change most likely responsible, say that the change
+#   fails verification in its own sandbox, and ask the author to confirm whether
+#   the new behaviour is intended. Do not suggest relaxing or rewriting a test
+#   assertion to match the new behaviour: a test that passes on baseline and
+#   fails in this pull request's sandbox is evidence against the change, not
+#   evidence that the test is obsolete.
+
+knowledge_base:
+  mcp:
+    # Public repositories need MCP turned on explicitly.
+    usage: enabled
+
+reviews:
+  # Shows the "Additional context used" section, which is where the sandbox
+  # state the review read over MCP appears.
+  review_details: true
+  auto_review:
+    enabled: true
+
+  pre_merge_checks:
+    custom_checks:
+      - name: "Verified in a live sandbox"
+        mode: error
+        instructions: |
+          Use the Signadot MCP tools to check this pull request's live sandbox
+          and what the tests run against it reported.
+          1. Call list_sandboxes. Select the sandbox whose labels include
+             signadot/github-pull-request equal to this pull request's number.
+          2. Call get_sandbox with that sandbox's name.
+          Pass only if all of these hold:
+            - a matching sandbox exists;
+            - status.ready is true;
+            - status.jobs.phaseCounts reports no jobs in the failed phase.
+          Fail if no matching sandbox exists, if status.ready is false, or if any
+          job is in the failed phase.
+          When a job has failed, say that this change was verified in its own
+          sandbox and the verification failed, and give the failed and succeeded
+          counts. A failing job is evidence about the change, not a sign that the
+          test needs updating, so never suggest changing the test to make the
+          check pass.
+          In every result state the sandbox name, whether it is ready, the image
+          each fork runs, and the job phase counts.
+
+  finishing_touches:
+    custom:
+      - name: verify-in-signadot
+        instructions: |
+          Verify this pull request by running it against real dependencies.
+
+          Do not modify any repository files. Read
+          .claude/skills/signadot-cli/SKILL.md and follow it. Prefix every
+          signadot command with SIGNADOT_API_KEY="$SIGNADOT_CRED" so the CLI is
+          authenticated.
+
+          1. signadot cluster list, to confirm the CLI works.
+          2. Create the sandbox for this pull request:
+             signadot sandbox apply -f signadot/pr-sandbox.yaml
+               --set cluster=$SIGNADOT_CLUSTER
+               --set service=$BOXOFFICE_SERVICE
+               --set image=$BOXOFFICE_IMAGE_TAG
+               --set repo=<owner/repo> --set pr=<this pull request's number>
+               --wait-timeout 5m
+          3. Run the guard job against it:
+             signadot job submit -f signadot/reservation-guard-job.yaml
+               --set sandbox=<the sandbox name>
+               --set runnerGroup=$SIGNADOT_RUNNER_GROUP --attach
+
+          Leave the sandbox running; the review reads it afterwards.
+
+          Report the sandbox name, whether it became ready, its preview URL, the
+          job name, the job's final phase, and the job's output verbatim,
+          including every HTTP status code it printed. Those status codes are the
+          evidence. If a job fails, say so plainly: it means the change behaves
+          differently from the baseline. Do not describe it as a flaky test or a
+          test that needs updating.
