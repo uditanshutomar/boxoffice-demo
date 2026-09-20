@@ -8,12 +8,18 @@ SERVICES := storefront inventory pricing
 REGISTRY ?= signadot
 TAG      ?= baseline
 
+# How a built image reaches your cluster. minikube and kind can take a local
+# image directly; on any other cluster set LOAD to a push and point REGISTRY at
+# something the cluster can pull from:
+#   make images REGISTRY=ghcr.io/you LOAD="docker push"
+LOAD     ?= minikube image load
+
 .PHONY: images deploy lesson clean
 
 images:
 	@for s in $(SERVICES); do \
 	  docker build -q -t $(REGISTRY)/boxoffice-demo-$$s:$(TAG) -f docker/$$s.Dockerfile . >/dev/null && \
-	  minikube image load $(REGISTRY)/boxoffice-demo-$$s:$(TAG) && \
+	  $(LOAD) $(REGISTRY)/boxoffice-demo-$$s:$(TAG) && \
 	  echo "built and loaded $(REGISTRY)/boxoffice-demo-$$s:$(TAG)"; \
 	done
 
@@ -36,7 +42,7 @@ lesson:
 	 tmp=`mktemp -d`; cp -R pkg docker $$tmp/; \
 	 cp lessons/$(LESSON)/$$svc/app.js $$tmp/pkg/$$svc/app.js; \
 	 docker build -q -t $(REGISTRY)/boxoffice-demo-$$svc:$(LESSON) -f $$tmp/docker/$$svc.Dockerfile $$tmp >/dev/null && \
-	 minikube image load $(REGISTRY)/boxoffice-demo-$$svc:$(LESSON) && \
+	 $(LOAD) $(REGISTRY)/boxoffice-demo-$$svc:$(LESSON) && \
 	 echo "built $(REGISTRY)/boxoffice-demo-$$svc:$(LESSON) from lessons/$(LESSON)/$$svc"; \
 	 rm -rf $$tmp
 

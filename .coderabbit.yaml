@@ -39,9 +39,8 @@ reviews:
   review_details: true
   auto_review:
     enabled: true
-    # Without this, CodeRabbit reviews only pull requests that target the
-    # default branch. Set it when your pull requests stack onto other branches.
-    base_branches: [".*"]
+    # If your pull requests target a branch other than the default one, add
+    # base_branches: [".*"] here; CodeRabbit skips them otherwise.
 
   pre_merge_checks:
     custom_checks:
