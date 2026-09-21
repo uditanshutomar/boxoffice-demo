@@ -5,9 +5,6 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { execFileSync } = require('node:child_process')
-const { sandboxName } = require('./sandbox-name.cjs')
-const { checkEvidence } = require('./check-evidence.cjs')
-const { checkHostedExecution } = require('./check-hosted-execution.cjs')
 const context = 'Signadot / reservation-contract'
 const [repo, pr, run] = process.argv.slice(2)
 let head, target, temp
@@ -24,6 +21,14 @@ try {
       !/^[1-9][0-9]*$/.test(pr || '') || !/^[1-9][0-9]*$/.test(run || '')) {
     throw new Error('Usage: node scripts/publish-runtime-status.cjs OWNER/REPO PR BUILD_RUN_ID')
   }
+  // Catch accidental local edits before loading verification helpers or using
+  // credentials. A clean checkout still must come from a trusted revision.
+  if (execute('git', ['-C', __dirname, 'status', '--porcelain']).trim()) {
+    throw new Error('Refusing to publish status from a dirty checkout')
+  }
+  const { sandboxName } = require('./sandbox-name.cjs')
+  const { checkEvidence } = require('./check-evidence.cjs')
+  const { checkHostedExecution } = require('./check-hosted-execution.cjs')
   const pull = json('gh', ['api', `repos/${repo}/pulls/${pr}`])
   head = pull.head.sha
   if (!/^[a-f0-9]{40}$/.test(head)) throw new Error('Invalid PR revision')

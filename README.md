@@ -177,6 +177,8 @@ directly, rejects missing/pending/stale/failed results, and publishes failure on
 It does not create infrastructure or execute PR code. Run it from trusted baseline code, never an
 unreviewed PR checkout containing a modified publisher. Keep status-writing credentials with the
 trusted publisher. After its first run, select this exact status name in branch protection.
+The publisher rejects staged, unstaged or untracked changes before reading evidence. This catches
+accidental local edits; a clean working tree alone does not establish that its revision is trusted.
 
 This is a point-in-time verification: rerun after relevant test or environment changes and before
 merging. A new PR commit requires a new image, sandbox and successful status. CodeRabbit's review
