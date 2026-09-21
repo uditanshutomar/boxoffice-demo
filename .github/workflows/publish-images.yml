@@ -1,6 +1,6 @@
 # Builds every boxoffice image and publishes it to the GitHub Container
 # Registry for this repository. It uses the token GitHub provides to the
-# workflow, so nothing has to be configured by hand.
+# workflow. Configure package visibility or cluster pull credentials separately.
 #
 # Images are built for amd64 and arm64, because these tutorials get written on
 # Apple Silicon and read on Linux.
@@ -33,6 +33,8 @@ jobs:
             tag: drop-fees
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # A lesson replaces one service's app.js. The baseline tag uses the file
       # as committed.
@@ -52,6 +54,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Registry namespace
+        id: registry
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "prefix=ghcr.io/${OWNER,,}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -59,5 +67,6 @@ jobs:
           file: docker/${{ matrix.service }}.Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/boxoffice-demo-${{ matrix.service }}:${{ matrix.tag }}
+          tags: ${{ steps.registry.outputs.prefix }}/boxoffice-demo-${{ matrix.service }}:${{ matrix.tag }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           provenance: false

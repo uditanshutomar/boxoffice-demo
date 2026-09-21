@@ -1,125 +1,71 @@
-# CodeRabbit configuration for the boxoffice demo.
-#
-# Two halves. The review reads this pull request's sandbox through the Signadot
-# MCP connection, and a pre-merge check refuses the merge while the tests run
-# against that sandbox are failing. The recipe is what creates the sandbox and
-# runs those tests in the first place.
-#
-# The MCP connection itself is configured in CodeRabbit's web interface, not
-# here. Paste this into its Prompt Guidance field:
-#
-#   Signadot runs a live Kubernetes sandbox for pull requests in {repo}. Each
-#   one is named after its pull request, so for pull request {pr} call
-#   get_sandbox with the name pr-{pr}. Do not call list_sandboxes and do not
-#   search by label: other pull requests have sandboxes of their own, and the
-#   only sandbox that counts is the one whose name matches this pull request. If
-#   get_sandbox returns nothing, say that this pull request has no live sandbox.
-#   Use only read tools.
-#
-#   In the review, state the sandbox name you looked up, whether it is ready,
-#   the image each fork runs, and its preview URL.
-#
-#   The sandbox runs this pull request's code against its real dependencies, so
-#   status.jobs.phaseCounts is evidence about how the change actually behaves.
-#   Weigh it above the pull request description and above code comments: those
-#   state intent, the sandbox states behaviour.
-#
-#   If any job failed, do not mark the changed source files LGTM. Raise a review
-#   comment on the source change most likely responsible, say that the change
-#   fails verification in its own sandbox, and ask the author to confirm whether
-#   the new behaviour is intended. Do not suggest relaxing or rewriting a test
-#   assertion to match the new behaviour: a test that passes on baseline and
-#   fails in this pull request's sandbox is evidence against the change, not
-#   evidence that the test is obsolete.
-
+# MCP tools are configured in CodeRabbit Connections, not in this file.
+# Review context needs get_sandbox. Sandbox creation is a separate, explicitly
+# invoked coding task with the required MCP write tools enabled by an admin.
 knowledge_base:
   mcp:
-    # Public repositories need MCP turned on explicitly.
     usage: enabled
-
 reviews:
-  # Shows the "Additional context used" section, which is where the sandbox
-  # state the review read over MCP appears.
   review_details: true
-
-  # Without this, a pre-merge check in error mode only prints a red row: the
-  # commit status still says success and the pull request stays mergeable. With
-  # it, CodeRabbit withholds its approval while a check is failing and requests
-  # changes instead, which a branch rule requiring an approving review turns
-  # into a real block.
   request_changes_workflow: true
-
   auto_review:
     enabled: true
-    # If your pull requests target a branch other than the default one, add
-    # base_branches: [".*"] here; CodeRabbit skips them otherwise.
-
   pre_merge_checks:
     custom_checks:
-      - name: "Verified in a live sandbox"
+      - name: "Verified in the current sandbox"
         mode: error
         instructions: |
-          Check the sandbox belonging to this pull request, and what the tests
-          run against it reported.
+          Verify runtime evidence for this repository, this PR number and its
+          current full head commit SHA. Obtain these from the PR context, not
+          from an author's claim. If any is unavailable, report Inconclusive.
 
-          This pull request's sandbox is named `pr-{pr}`. Call get_sandbox with
-          exactly that name. Do not call list_sandboxes, and do not search for a
-          sandbox by label. Other pull requests have sandboxes of their own, and
-          a search can return one of those; the only sandbox that counts here is
-          `pr-{pr}`.
-          State the literal name you looked up in your explanation, so it is
-          clear which sandbox was read.
+          Compute the sandbox name as "box-" plus the first 20 lowercase hex
+          characters of SHA-256 of the UTF-8 string
+          "<lowercase owner/repo>#<PR number>@<full head SHA>", with no newline.
+          Call get_sandbox with that exact name. Do not search a sandbox list.
+          Confirm its signadot/github-repo and signadot/github-pull-request
+          labels match the PR, and boxoffice/revision equals the full head SHA.
+          Confirm the single fork's complete image reference ends in @sha256:<64 hex characters>
+          and matches the digest reported by the successful "Build PR image"
+          workflow run for that head commit. Missing build identity is
+          Inconclusive, never a pass. A lesson tag is insufficient.
 
-          Pass only if all of these hold:
-            - get_sandbox returns a sandbox with that exact name;
-            - status.ready is true;
-            - status.jobs.phaseCounts reports no jobs in the failed phase.
-          Fail if get_sandbox returns nothing, if status.ready is false, or if
-          any job is in the failed phase.
+          Pass only when status.ready is true AND status.testExecutions has:
+          - at least one succeeded execution;
+          - zero pending, in_progress, failed and canceled executions;
+          - at least five passed checks and zero failed checks;
+          - zero red traffic differences.
+          Missing testExecutions or checks means no verification, not success.
+          phaseCounts is an array of {phase, count}; an omitted count is zero.
+          A succeeded execution may contain failed checks: inspect both.
+          Reject unknown phases or malformed counts. A running test is not a pass.
 
-          When a job has failed, say that this change was verified in its own
-          sandbox and the verification failed, and give the failed and succeeded
-          counts. A failing job is evidence about the change, not a sign that the
-          test needs updating, so never suggest changing the test to make the
-          check pass.
-          In every result state the sandbox name you looked up, whether it is
-          ready, the image each fork runs, and the job phase counts.
-
+          State the exact name, repository, revision, image digest, readiness,
+          execution counts, check counts and traffic difference counts read.
+          Missing or ambiguous evidence is Inconclusive and must not grant
+          approval. Explain what is missing. Report observed failures without
+          assuming every failure is a source-code bug; infrastructure can fail.
+          Runtime evidence supplements static findings. Do not weaken assertions
+          merely to accept changed behavior. Intended contract changes require
+          an explicit design decision and independent test review.
   finishing_touches:
     custom:
       - name: verify-in-signadot
         instructions: |
-          Verify this pull request by running it against real dependencies.
-
-          Do not modify any repository files. Read
-          .claude/skills/signadot-cli/SKILL.md and follow it. Prefix every
-          signadot command with SIGNADOT_API_KEY="$SIGNADOT_CRED" so the CLI is
-          authenticated.
-
-          1. signadot cluster list, to confirm the CLI works.
-          2. Work out which service this pull request changes and which image
-             tag to run. The changed file under pkg/ names the service. The
-             image tag is the lesson name, which is the branch name with its
-             "boxoffice-" prefix removed.
-          3. Create the sandbox for this pull request:
-             signadot sandbox apply -f signadot/pr-sandbox.yaml
-               --set cluster="$SIGNADOT_CLUSTER"
-               --set registry="$SIGNADOT_REGISTRY"
-               --set service=<the service from step 2>
-               --set image=<the tag from step 2>
-               --set repo=<owner/repo> --set pr=<this pull request's number>
-               --wait-timeout 5m
-             The sandbox this creates is named pr-<that number>.
-          4. Run the guard job against it:
-             signadot job submit -f signadot/reservation-guard-job.yaml
-               --set sandbox=<the sandbox name>
-               --set runnerGroup="$SIGNADOT_RUNNER_GROUP" --attach
-
-          Leave the sandbox running; the review reads it afterwards.
-
-          Report the sandbox name, whether it became ready, its preview URL, the
-          job name, the job's final phase, and the job's output verbatim,
-          including every HTTP status code it printed. Those status codes are the
-          evidence. If a job fails, say so plainly: it means the change behaves
-          differently from the baseline. Do not describe it as a flaky test or a
-          test that needs updating.
+          Read .claude/skills/signadot-cli/SKILL.md. Do not edit repository files,
+          push commits, or publish images. Verify the current PR using the
+          Signadot MCP connection and the preconfigured hosted Smart Test.
+          Use the current PR head and its successful Build PR image workflow
+          to obtain the full image digest, service and revision. Never derive
+          an image from the branch name or use a mutable lesson tag.
+          Render signadot/pr-sandbox.yaml with those values and the intended
+          cluster. Present the exact specification for any confirmation required
+          by the MCP tool. Respect cancellation; do not change client capabilities
+          or bypass confirmation. Create the sandbox using create_sandbox.
+          Creation triggers the hosted test only if its matching trigger and
+          managed runner are configured. Do not claim create_sandbox ran a test.
+          Read get_sandbox until the hosted executions reach a terminal phase,
+          with a bounded five-minute wait. Report all counts and checks, even
+          when an execution succeeded. If tools, build evidence or confirmation
+          are unavailable, stop and explain the missing prerequisite.
+          Do not obtain a CLI API key by renaming environment variables.
+          Leave the sandbox available for the next review.

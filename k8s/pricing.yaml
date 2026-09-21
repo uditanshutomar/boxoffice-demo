@@ -25,12 +25,10 @@ spec:
           image: signadot/boxoffice-demo-pricing:baseline
           imagePullPolicy: IfNotPresent
           env:
-            # The cache is here for the cache-stale lesson, but a long time to
-            # live lets a baseline-computed quote mask a change in a sandbox,
-            # because both read the same Redis. Keep it short enough that a
-            # test always exercises the code under review.
-            - { name: CACHE_SECONDS, value: "5" }
+            # A sandbox overrides CACHE_NAMESPACE; TTL alone cannot isolate cached values.
+            - { name: CACHE_SECONDS, value: "60" }
+            - { name: CACHE_NAMESPACE, value: "baseline-v2" }
           ports: [{ containerPort: 8082 }]
           readinessProbe:
-            httpGet: { path: /healthz, port: 8082 }
+            httpGet: { path: /readyz, port: 8082 }
             initialDelaySeconds: 3

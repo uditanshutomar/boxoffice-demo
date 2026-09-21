@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
-# Setup script for a CodeRabbit coding environment.
-#
-# Paste this into Coding -> Environments -> your environment -> Setup script.
-# It installs the Signadot CLI so the verify-in-signadot recipe can create a
-# sandbox and run the guard job against it.
-#
-# The version is pinned on purpose. An agent that silently picks up a new CLI
-# is an agent whose runs stop being comparable.
+# Optional Linux CLI installer for an intentionally authenticated CI/developer environment.
+# The MCP + hosted-trigger recipe does not need this installer or shell credentials.
+# If installed to ~/.local/bin, add that directory to PATH in the calling environment.
 set -euo pipefail
 
+[[ "$(uname -s)" == Linux ]] || { echo "This installer targets Linux" >&2; exit 1; }
 version=v1.8.0
 case "$(uname -m)" in
   x86_64) arch=amd64 ;;
