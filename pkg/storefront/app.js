@@ -32,6 +32,15 @@ async function callJson(req, url, body) {
   return { ok: response.ok, status: response.status, payload }
 }
 
+// Returns the message to send when the request is unusable, or null when it is
+// fine. Pulled out of the handler so the happy path reads in one screen.
+function missingFields({ showId, seats, idempotencyKey }) {
+  if (!showId || !Array.isArray(seats) || seats.length === 0 || !idempotencyKey) {
+    return 'showId, a non-empty seats array and idempotencyKey are required'
+  }
+  return null
+}
+
 const app = express()
 app.use(express.json())
 
@@ -41,10 +50,9 @@ app.get('/healthz', (_req, res) => res.json({ status: 'ok' }))
 // compares: a status, the seats held, when the hold lapses, and the money.
 app.post('/reservations', async (req, res) => {
   const { showId, seats, currency = 'USD', idempotencyKey } = req.body || {}
-  if (!showId || !Array.isArray(seats) || seats.length === 0 || !idempotencyKey) {
-    return res
-      .status(400)
-      .json({ error: 'showId, a non-empty seats array and idempotencyKey are required' })
+  const invalid = missingFields({ showId, seats, idempotencyKey })
+  if (invalid) {
+    return res.status(400).json({ error: invalid })
   }
 
   const held = await callJson(req, `${INVENTORY_URL}/reservations`, { showId, seats, idempotencyKey })
