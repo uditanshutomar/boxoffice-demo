@@ -40,6 +40,9 @@ reviews:
           - zero red traffic differences.
           Missing testExecutions or checks means no verification, not success.
           phaseCounts is an array of {phase, count}; an omitted count is zero.
+          In a present checks or trafficDiffs summary, omitted numeric counters
+          such as failed and red are zero (the SDK serializes them with omitempty).
+          This does not make an absent testExecutions or checks object a pass.
           A succeeded execution may contain failed checks: inspect both.
           Reject unknown phases or malformed counts. A running test is not a pass.
 

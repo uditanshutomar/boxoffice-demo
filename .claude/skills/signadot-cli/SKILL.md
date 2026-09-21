@@ -47,6 +47,9 @@ hosted trigger; MCP does not currently provide a direct test-run tool. Confirm r
 `status.testExecutions` directly. `get_workload_object` for the `forkOf` Deployment returns
 the baseline; its image is expected to differ from the fork's image. Do not treat that as a
 sandbox image mismatch or substitute baseline readiness for sandbox readiness.
+Within a present summary, omitted numeric counters such as `checks.failed` and
+`trafficDiffs.red` are zero: the SDK uses `omitempty`. An absent test/check summary is
+still missing evidence, and five explicitly passed checks remain required.
 
 The current sandbox summary can be checked deterministically from a saved response:
 
