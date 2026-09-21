@@ -53,8 +53,8 @@ app.post('/quotes', async (req, res, next) => {
       new Set(seats).size !== seats.length) {
     return res.status(400).json({ error: 'showId and a non-empty seats array are required' })
   }
-  if (!Object.hasOwn(RATE_FROM_USD, currency)) {
-    return res.status(400).json({ error: `unsupported currency: ${currency}` })
+  if (typeof currency !== 'string' || !Object.hasOwn(RATE_FROM_USD, currency)) {
+    return res.status(400).json({ error: 'currency must be USD, EUR or GBP' })
   }
 
   try {

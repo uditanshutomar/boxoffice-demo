@@ -144,7 +144,7 @@ test('sandbox pricing cannot consume a baseline cached quote or poison it', asyn
 test('currency quote keeps integer components and rejects inherited object keys', async () => {
   const body = { showId: 'show-1', seats: ['A7'], currency: 'EUR' }
   assert.deepEqual((await post(pricing, '/quotes', body)).body, { currency: 'EUR', subtotal: 4140, fees: 207, total: 4347 })
-  for (const currency of ['toString', '__proto__', 'AUD']) {
+  for (const currency of ['toString', '__proto__', 'AUD', ['USD'], null, 1, true, { toString: 'USD' }]) {
     assert.equal((await post(pricing, '/quotes', { ...body, currency })).status, 400)
     assert.equal((await post(baseline, '/reservations', reservation('bad-currency', ['A7'], { currency }))).status, 400)
   }
