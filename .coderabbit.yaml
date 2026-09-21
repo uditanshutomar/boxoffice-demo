@@ -92,6 +92,7 @@ reviews:
           3. Create the sandbox for this pull request:
              signadot sandbox apply -f signadot/pr-sandbox.yaml
                --set cluster="$SIGNADOT_CLUSTER"
+               --set registry=signadot
                --set service=<the service from step 2>
                --set image=<the tag from step 2>
                --set repo=<owner/repo> --set pr=<this pull request's number>

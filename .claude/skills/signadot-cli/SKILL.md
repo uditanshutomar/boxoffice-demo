@@ -33,6 +33,7 @@ against mocks.
 ```bash
 signadot sandbox apply -f signadot/pr-sandbox.yaml \
   --set cluster="$CLUSTER" \
+  --set registry="$REGISTRY" \
   --set service="$SERVICE" \
   --set image="$IMAGE_TAG" \
   --set repo="$REPO" \

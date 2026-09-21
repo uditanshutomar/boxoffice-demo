@@ -29,7 +29,7 @@ spec:
         name: "@{service}"
       customizations:
         images:
-          - image: "signadot/boxoffice-demo-@{service}:@{image}"
+          - image: "@{registry}/boxoffice-demo-@{service}:@{image}"
             container: "@{service}"
   defaultRouteGroup:
     endpoints:
