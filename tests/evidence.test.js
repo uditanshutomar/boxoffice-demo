@@ -10,6 +10,26 @@ const good = () => ({
   status: { ready: true, testExecutions: { phaseCounts: [{ phase: 'succeeded', count: 1 }, { phase: 'failed' }], checks: { passed: 5 }, trafficDiffs: { green: 2 } } },
 })
 test('complete evidence for the expected revision passes', () => assert.deepEqual(checkEvidence(good(), expected), []))
+test('requires a traffic comparison summary while accepting omitted zero counters', () => {
+  for (const value of [undefined, null, [], 'unavailable', 0]) {
+    const s = good(); s.status.testExecutions.trafficDiffs = value
+    assert.ok(checkEvidence(s, expected).length)
+  }
+  const s = good(); s.status.testExecutions.trafficDiffs = {}
+  assert.deepEqual(checkEvidence(s, expected), [])
+})
+test('rejects malformed provided numeric counters', () => {
+  for (const mutate of [
+    t => { t.phaseCounts[1].count = null },
+    t => { t.checks.failed = null },
+    t => { t.trafficDiffs.red = null },
+    t => { t.trafficDiffs.red = '0' },
+    t => { t.trafficDiffs.green = -1 },
+  ]) {
+    const s = good(); mutate(s.status.testExecutions)
+    assert.ok(checkEvidence(s, expected).length)
+  }
+})
 test('repository and commit changes get distinct valid sandbox names', () => {
   assert.notEqual(sandboxName('another/boxoffice-demo', '1', expected.revision), good().name)
   assert.notEqual(sandboxName(expected.repo, '1', 'c'.repeat(40)), good().name)
