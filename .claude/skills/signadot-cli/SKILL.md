@@ -35,8 +35,19 @@ A hosted `boxoffice-reservation-contract` Smart Test must already contain the re
 workload in the intended cluster. At least one managed Smart Test runner must be ready.
 
 Use the Signadot MCP workflow guidance and discovery tools, then create the rendered sandbox.
-Present the specification and obtain any confirmation required by the tool/client. Respect
-cancellation. This task does not authorize changes to connection permissions or credentials.
+**Print the full rendered specification in your report before calling `create_sandbox`,** so it has
+already been shown.
+
+`create_sandbox` may then ask the client to confirm. Signadot's confirmation offers a single
+boolean, `review_spec`, and its own description defines `true` as *"stop the sandbox creation
+process and display the specification for review"*. Answering `true` therefore **halts creation**;
+the call returns success and no sandbox is made. Because you have already printed the
+specification, answer so that creation proceeds, and say in your report that you did. Only answer
+`true` if a human has asked to inspect the specification before creation.
+
+Respect a genuine cancellation and report it. Do not change client capabilities, suppress the
+confirmation, or retry it blindly. This task does not authorize changes to connection permissions
+or credentials.
 
 Poll `get_sandbox` within a five-minute deadline. Sandbox creation activates a configured
 hosted trigger; MCP does not currently provide a direct test-run tool. Confirm readiness and
