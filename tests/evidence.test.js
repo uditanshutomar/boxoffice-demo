@@ -30,6 +30,12 @@ test('rejects malformed provided numeric counters', () => {
     assert.ok(checkEvidence(s, expected).length)
   }
 })
+test('returns evidence failures for malformed phase entries', () => {
+  for (const value of [null, undefined, [], 0, 'succeeded', false]) {
+    const s = good(); s.status.testExecutions.phaseCounts = [value]
+    assert.ok(checkEvidence(s, expected).length)
+  }
+})
 test('repository and commit changes get distinct valid sandbox names', () => {
   assert.notEqual(sandboxName('another/boxoffice-demo', '1', expected.revision), good().name)
   assert.notEqual(sandboxName(expected.repo, '1', 'c'.repeat(40)), good().name)

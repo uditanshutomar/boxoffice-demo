@@ -21,6 +21,9 @@ function checkEvidence(sandbox, { repo, pr, revision, image }) {
   else {
     const phases = new Map()
     for (const item of tests.phaseCounts) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        failures.push('invalid execution phase entry'); continue
+      }
       const count = item.count === undefined ? 0 : item.count
       if (!['pending', 'in_progress', 'failed', 'succeeded', 'canceled'].includes(item.phase) ||
           !Number.isInteger(count) || count < 0 || phases.has(item.phase)) {
