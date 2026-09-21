@@ -22,6 +22,10 @@ reviews:
           characters of SHA-256 of the UTF-8 string
           "<lowercase owner/repo>#<PR number>@<full head SHA>", with no newline.
           Call get_sandbox with that exact name. Do not search a sandbox list.
+          Its response wraps the record under sandbox; inspect that record's
+          spec and status.testExecutions, not just a prose summary. A
+          get_workload_object lookup of forkOf returns the baseline workload;
+          its different image is expected, not proof of a wrong sandbox image.
           Confirm its signadot/github-repo and signadot/github-pull-request
           labels match the PR, and boxoffice/revision equals the full head SHA.
           Confirm the single fork's complete image reference ends in @sha256:<64 hex characters>
@@ -34,15 +38,20 @@ reviews:
           - zero pending, in_progress, failed and canceled executions;
           - at least five passed checks and zero failed checks;
           - zero red traffic differences.
-          Missing testExecutions or checks means no verification, not success.
+          Missing testExecutions, checks or trafficDiffs means no verification, not success.
           phaseCounts is an array of {phase, count}; an omitted count is zero.
+          In a present checks or trafficDiffs summary, omitted numeric counters
+          such as failed and red are zero (the SDK serializes them with omitempty).
+          This does not make an absent testExecutions, checks or trafficDiffs object a pass.
           A succeeded execution may contain failed checks: inspect both.
           Reject unknown phases or malformed counts. A running test is not a pass.
 
           State the exact name, repository, revision, image digest, readiness,
           execution counts, check counts and traffic difference counts read.
-          Missing or ambiguous evidence is Inconclusive and must not grant
-          approval. Explain what is missing. Report observed failures without
+          Missing or ambiguous evidence is Inconclusive, not verification.
+          GitHub's required Signadot / reservation-contract status enforces
+          missing evidence; Inconclusive alone does not block a PR.
+          Explain what is missing. Report observed failures without
           assuming every failure is a source-code bug; infrastructure can fail.
           Runtime evidence supplements static findings. Do not weaken assertions
           merely to accept changed behavior. Intended contract changes require

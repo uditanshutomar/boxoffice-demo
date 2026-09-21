@@ -21,20 +21,31 @@ function checkEvidence(sandbox, { repo, pr, revision, image }) {
   else {
     const phases = new Map()
     for (const item of tests.phaseCounts) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        failures.push('invalid execution phase entry'); continue
+      }
+      const count = item.count === undefined ? 0 : item.count
       if (!['pending', 'in_progress', 'failed', 'succeeded', 'canceled'].includes(item.phase) ||
-          !Number.isInteger(item.count ?? 0) || (item.count ?? 0) < 0 || phases.has(item.phase)) {
+          !Number.isInteger(count) || count < 0 || phases.has(item.phase)) {
         failures.push('invalid or unknown execution phase'); continue
       }
-      phases.set(item.phase, item.count ?? 0)
+      phases.set(item.phase, count)
     }
     if ((phases.get('succeeded') || 0) < 1) failures.push('no completed successful execution')
     for (const phase of ['pending', 'in_progress', 'failed', 'canceled']) {
       if ((phases.get(phase) || 0) > 0) failures.push(`execution ${phase}`)
     }
-    if (!Number.isInteger(tests.checks?.passed) || tests.checks.passed < 5 || (tests.checks?.failed ?? 0) !== 0) {
+    if (!Number.isInteger(tests.checks?.passed) || tests.checks.passed < 5 ||
+        (tests.checks.failed !== undefined && tests.checks.failed !== 0)) {
       failures.push('five passing contract checks with no failures are required')
     }
-    if ((tests.trafficDiffs?.red ?? 0) !== 0) failures.push('unexplained red traffic differences')
+    const diffs = tests.trafficDiffs
+    if (!diffs || typeof diffs !== 'object' || Array.isArray(diffs)) {
+      failures.push('no traffic comparison summary')
+    } else if (['green', 'yellow', 'red'].some(k => diffs[k] !== undefined &&
+        (!Number.isInteger(diffs[k]) || diffs[k] < 0))) {
+      failures.push('invalid traffic difference counts')
+    } else if ((diffs.red || 0) !== 0) failures.push('unexplained red traffic differences')
   }
   return failures
 }
