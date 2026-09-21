@@ -1,171 +1,188 @@
-# Boxoffice
+# Boxoffice: a reusable runtime verification example
 
-A seat reservation system for demonstrating runtime verification. It exists to answer one
-question: when a change reads as an improvement but behaves differently, what catches it?
+Boxoffice is a small seat-hold API for tutorials about agentic development. Its three services
+run against real PostgreSQL and Redis. Lessons change one service while preserving its deployment
+interface, so a Signadot sandbox can exercise the change against the remaining baseline services.
 
-Every lesson in `lessons/` is a small, plausible edit — the kind an AI agent writes while tidying
-code up — published as a tag on one service's image. Run a lesson in a Signadot sandbox and its
-behaviour diverges from the baseline while the diff still looks reasonable.
-
-## What you will build
-
-Three services and their dependencies, in one namespace:
-
-| Service | Role | Backed By |
+| Service | Responsibility | Dependency |
 | --- | --- | --- |
-| `storefront` | The API you call. Holds seats, then prices them. | — |
-| `inventory` | Owns the seats. Reserves them with a hold that expires. | Postgres |
-| `pricing` | Quotes a seat selection. | Redis |
+| storefront | Validate a request, acquire a hold, return a quote | inventory, pricing |
+| inventory | Own seats, enforce idempotency, expire holds | PostgreSQL |
+| pricing | Calculate integer minor-unit amounts and cache quotes | Redis |
 
-`POST /reservations` returns the contract everything here compares:
-
-```json
-{
-  "reservationId": "rsv_0d0b7cd01fa4",
-  "status": "held",
-  "seats": ["C11", "C12"],
-  "expiresAt": "2026-09-20T17:26:13.236Z",
-  "quote": { "currency": "USD", "subtotal": 5000, "fees": 250, "total": 5250 },
-  "idempotencyKey": "guard-hold"
-}
-```
-
-The same request always returns the same response. A reservation's id is derived from its
-idempotency key and a retry returns the stored reservation, so comparing a sandbox against the
-baseline shows real differences rather than noise.
+This is a teaching application. It does not charge customers, confirm purchases, or send
+notifications. PostgreSQL and Redis are disposable in these manifests. A pricing failure after
+inventory succeeds leaves a hold until expiry; there is no distributed transaction or checkout
+workflow. Sandboxes share the database: request routing alone does not isolate stored data.
 
 ## Prerequisites
 
-- A Kubernetes cluster with the [Signadot Operator](https://www.signadot.com/docs/installation/signadot-operator) installed
-- The [Signadot CLI](https://www.signadot.com/docs/getting-started/installation/signadot-cli)
-- A [Job Runner Group](https://www.signadot.com/docs/reference/job-runner-groups) for running the guard job
-- Docker, and `minikube` if that is where you are running
+- A **disposable** Kubernetes test environment with the [Signadot Operator](https://www.signadot.com/docs/installation/signadot-operator).
+- Docker and the [Signadot CLI](https://www.signadot.com/docs/getting-started/installation/signadot-cli).
+- For minikube, the profile named `minikube`. Use explicit context and image-loading options for another test cluster.
+- For Jobs: a [Job Runner Group](https://www.signadot.com/docs/reference/job-runner-groups) with Node.js 18+.
+- For Smart Tests: at least one ready managed Smart Test runner in the intended cluster.
 
-## Step 1: Deploy the baseline
+Commands below run from this example's directory. Use the matching example revision supplied
+with your tutorial; previously published personal-account images do not automatically include
+local changes to this checkout.
+
+## 1. Deploy the baseline
 
 ```bash
 make images
-make deploy
+make deploy KUBE_CONTEXT=minikube
 ```
 
-This builds each service at `:baseline`, loads the images into the cluster, applies the manifests
-and seeds one show with three rows of twelve seats.
+`make images` builds and loads all three baseline images into the default minikube profile.
+`make deploy` initializes one show (`show-1`) with 36 seats in namespace `boxoffice`.
+It waits for all five deployments. The application services use DevMesh sidecars and should be
+`2/2`; PostgreSQL and Redis have one container each. DevMesh is the routing choice in these
+manifests; other Signadot-supported meshes have different setup requirements.
 
-`make images` loads images straight into minikube. On any other cluster, push them to a registry
-it can pull from and deploy from the same place:
+For a registry-backed test cluster, use a registry you own and a context you intend to test on:
 
 ```bash
-make images REGISTRY=ghcr.io/you LOAD="docker push"
-make deploy REGISTRY=ghcr.io/you
+make images REGISTRY=ghcr.io/YOUR_OWNER LOAD="docker push"
+make deploy REGISTRY=ghcr.io/YOUR_OWNER KUBE_CONTEXT=YOUR_TEST_CONTEXT
 ```
 
-`make deploy` rewrites the image registry in the manifests to match, so the two stay in step.
+Ensure the cluster can pull those images. GHCR packages may need their visibility or pull
+credentials configured. Rebuilding a mutable tag does not necessarily replace a cached image;
+use a new `TAG` for a changed baseline. The PR workflow below uses image digests instead.
 
-The deployments carry `sidecar.signadot.com/inject: "true"`. Signadot's DevMesh sidecar is what
-routes a request to a sandbox; without it a sandbox stays at `RoutingNotReady`.
+## 2. Run the conventional guard
 
-## Step 2: Run the guard against the baseline
+If you need a runner, a Signadot admin can create the supplied one after deploying the namespace:
+
+```bash
+signadot jobrunnergroup apply -f signadot/job-runner-group.yaml --set cluster=YOUR_CLUSTER
+```
+
+Wait until the runner has a ready pod, then run against baseline. **The empty sandbox substitution
+is required**; omitting it leaves an unexpanded template variable.
 
 ```bash
 signadot job submit -f signadot/reservation-guard-job.yaml \
-  --set runnerGroup=<your-runner-group> --attach
+  --set runnerGroup=boxoffice-tests --set sandbox= --attach
 ```
 
-It asserts the two things a reservation has to get right: a request that can be served holds seats
-and is quoted with its fees, and seats that are already held are refused. Against the baseline it
-passes.
+The guard checks the actual JSON contract: a held reservation, correct fees and total, an
+identical retry during the active hold, and exactly `409` for a competing reservation. A `5xx`,
+malformed JSON, missing fields, transport failure or timeout fails verification.
 
-The job holds seats C11 and C12 under a fixed idempotency key, so every run returns the same
-reservation rather than consuming more of the show. That is why it can be run repeatedly, and why
-the second request in it is always a genuine conflict.
+It reserves C11/C12 using `guard-hold-v2`. The competing key is `guard-conflict-v2`. These are
+reserved fixtures: do not use them for manual bookings. Retrying the owning key reuses the hold
+until it expires (15 minutes by default); after expiry it acquires a new hold with a new expiry.
+Reservation IDs are deterministic, but responses are not timeless or universally byte-identical.
+Idempotency binds the hold's show and seat set; currency is a separate quote choice.
 
-## Step 3: Run a lesson
+## 3. Compare a broken change and a safe change
 
 ```bash
 make lesson LESSON=swallow-errors
-
 signadot sandbox apply -f signadot/lesson-sandbox.yaml \
-  --set cluster=<your-cluster> --set registry=signadot \
-  --set service=storefront --set lesson=swallow-errors \
-  --wait-timeout 5m
-
+  --set cluster=YOUR_CLUSTER --set registry=signadot \
+  --set service=storefront --set lesson=swallow-errors --wait-timeout 5m
 signadot job submit -f signadot/reservation-guard-job.yaml \
-  --set sandbox=storefront-swallow-errors --set runnerGroup=<your-runner-group> --attach
+  --set sandbox=storefront-swallow-errors --set runnerGroup=boxoffice-tests --attach
 ```
 
-The sandbox runs the lesson's `storefront` against the same inventory, pricing, Postgres and Redis
-as everything else. The same job now fails:
+The second key now receives `201` with a quote but no hold. The guard must fail. Static review
+can also identify this bug; the runtime demonstration establishes what actually happened.
 
-```
-POST /reservations (seats held)  -> HTTP 201 {"quote":{"currency":"USD","subtotal":5000,"fees":250,"total":5250},...}
-FAIL: seats that are already held returned HTTP 201.
-      The caller is told the booking succeeded while holding nothing.
-```
+Repeat with `LESSON=safe-refactor` and `lesson=safe-refactor`; use sandbox
+`storefront-safe-refactor` for the job. That change extracts validation into a helper and should
+pass the same contract. For another cluster, build lessons with the same `REGISTRY` and `LOAD`
+options used for baseline and pass that registry to the sandbox.
 
-Read the change that caused it:
+The third lesson, `drop-fees`, forks **pricing**. It removes fees from the quote and total.
+Both test formats detect it. See [the lesson catalogue](lessons/README.md).
+
+## 4. Configure automatic hosted Smart Tests
+
+External `.star` files do not run merely because a sandbox exists. To run this test on creation:
+
+1. Enable at least one managed Smart Test runner for the cluster in Signadot's **Platform → Managed Runners** page.
+2. Create a **hosted Smart Test** named `boxoffice-reservation-contract` in the dashboard. Paste the contents of `smart-tests/reservations/create-reservation.star`.
+3. In its **Triggers** tab, add the intended cluster and `Deployment`, namespace `boxoffice`, workload `storefront`. Enable traffic comparison for the execution.
+4. Add a second trigger for `Deployment` / `boxoffice` / `pricing` for the `drop-fees` lesson.
+5. Create or update a matching sandbox, then inspect the resulting **hosted** execution and its baseline and sandbox checks. Existing external executions do not prove the trigger is configured.
+
+This is the documented [hosted-trigger mechanism](https://www.signadot.com/docs/reference/smart-tests/spec#triggers).
+It does not require a separate test-run MCP tool or a CLI key in the reviewer's shell.
+The test uses B11/B12 and separate fixed fixture keys, so it can run alongside the conventional guard.
+
+An execution can be `succeeded` while an assertion failed. Read
+`status.testExecutions.checks.failed` as well as `phaseCounts`. The
+[sandbox status reference](https://www.signadot.com/docs/reference/sandboxes/status) explains the
+summary fields. Ordinary Jobs are summarized separately under `status.jobs`.
+
+For an explicit external run from a git checkout, you can also use:
 
 ```bash
-diff -u pkg/storefront/app.js lessons/swallow-errors/storefront/app.js
+signadot smart-test run --sandbox storefront-safe-refactor --publish --wait
 ```
 
-Four lines, with a comment explaining why they are an improvement.
+Hosted and external tests are separate copies. After editing the `.star` file, update the hosted
+copy before claiming that a sandbox ran the new contract.
 
-## Step 4: Run the counter-example
+## 5. Use the example in a PR tutorial
+
+For GitHub workflows, place this example at the **root of a repository you control**, including
+its dotfiles. Nested `.github/workflows` inside an examples monorepo do not run automatically.
+
+- `Publish boxoffice images` publishes baseline and convenience lesson tags. Its packages must be pullable by the cluster.
+- `Build PR image` builds the selected service from an actual same-repository PR head, without applying a lesson overlay. It records repository, PR, full SHA, service and digest in `build-identity.json` and its run summary.
+- `signadot/pr-sandbox.yaml` uses that full digest and revision labels. Compute its name with `node scripts/sandbox-name.cjs OWNER/REPO PR FULL_HEAD_SHA`. It is specific to the repository, PR and commit and fits Signadot's 30-character limit.
+- `.coderabbit.yaml` proposes a read-only evidence check and an explicitly invoked MCP verification recipe. Configure connection tools and scope in CodeRabbit separately. A review instruction is interpreted by an agent; it is not a deterministic CI status check.
+- `.claude/skills/signadot-cli/SKILL.md` describes verification and its failure conditions. It respects tool confirmation and cancellation, and does not rename credentials.
+- `scripts/check-evidence.cjs` deterministically checks the sandbox summary against an expected build identity. It does not prove which named test ran; inspect the hosted execution too.
+
+A new commit needs a new build and sandbox. Never pass the old lesson tag off as the current PR's
+code. A passing runtime check supplements static findings; it does not automatically make a change
+safe or guarantee CodeRabbit approval.
+
+## Local regression tests
+
+Install Node.js 22, PostgreSQL 16 command-line tools, and Redis. On macOS, PostgreSQL and Redis
+are available through Homebrew. Then:
 
 ```bash
-make lesson LESSON=safe-refactor
-signadot sandbox apply -f signadot/lesson-sandbox.yaml \
-  --set cluster=<your-cluster> --set registry=signadot \
-  --set service=storefront --set lesson=safe-refactor \
-  --wait-timeout 5m
-signadot job submit -f signadot/reservation-guard-job.yaml \
-  --set sandbox=storefront-safe-refactor --set runnerGroup=<your-runner-group> --attach
+make test
 ```
 
-This one really is a refactor. The job passes, identical to the baseline. A verification step that
-only ever fails teaches nothing, so the counter-example matters as much as the regression.
+The harness installs locked Node dependencies and starts disposable local databases on
+`127.0.0.1:15432` and `127.0.0.1:16379`. Those ports and application ports 18080–18088 must be free.
+It cleans up its own processes and data afterwards. Tests exercise concurrent reservations,
+idempotency, expiry, invalid input, dependency failures, routing-header propagation, cache
+separation, lesson outcomes, and missing or stale verification evidence.
 
-`lessons/README.md` lists what each lesson does and what it looks like in review.
+These are application tests, not a substitute for cluster routing and live CodeRabbit validation.
 
-The repository also ships Smart Tests under `smart-tests/`, which compare a sandbox's responses
-against the baseline rather than asserting on them. They need Smart Test Runners enabled for your
-cluster under **Platform → Managed Runners**, and — this is the part to check — at least one
-runner pod actually running in the cluster. If `Smart Test Runners` shows as "Not configured" for
-your cluster, or runs end in `timed out after 5m` with no pod appearing, the runner has not been
-provisioned and no Smart Test will execute. The guard job above needs only a Job Runner Group and
-is unaffected.
+## Extending the example
 
-## Notes for extending this
+Keep lesson changes narrow and retain the same routes, ports and dependencies. Add an explicit
+behavioral expectation and test both the correct baseline and the changed service. Do not depend
+on a reviewer missing a bug or agreeing with a persuasive comment.
 
-- **Forward the routing header.** `storefront` passes `baggage` on to its downstream calls. A
-  service that does not forward it sends every request to the baseline, so a sandbox of anything behind it
-  never runs.
-- **Mind caches.** A cache entry written by the baseline will be served to a sandbox, and a test
-  then passes against code that never ran. `pricing` keeps a short time to live for this reason.
-- **Stay drop-in.** A lesson changes one service's code and nothing else — same routes, same
-  ports, same environment — so it can be forked against untouched dependencies.
+Storefront forwards `baggage`, `traceparent`, `tracestate` and `x-request-id`. Pricing keys include
+`CACHE_NAMESPACE`, show, currency and seats. Sandbox specs set a separate cache namespace, so a
+warm baseline cache cannot hide or be contaminated by a changed pricing implementation.
 
-## What the CodeRabbit files are for
-
-Three files here belong to the
-[runtime-aware code review](https://www.signadot.com/docs/tutorials/runtime-aware-code-review)
-tutorial, which has CodeRabbit create the sandbox, run the guard job and read the result over
-Signadot's MCP server. They are inert unless you follow it.
-
-| Path | Role |
-| --- | --- |
-| `.coderabbit.yaml` | The review settings, the `verify-in-signadot` recipe and the pre-merge check that reads the sandbox |
-| `.claude/skills/signadot-cli/` | The skill an agent follows to create a sandbox and run the job with an API key alone |
-| `scripts/coderabbit-setup.sh` | Setup script for a CodeRabbit coding environment; installs a pinned Signadot CLI |
+Inventory serializes mutations per show and locks all requested seat rows. This deliberately
+simple policy suits a 36-seat demo; it is not a high-throughput booking architecture.
 
 ## Cleanup
 
+Delete only the sandboxes you created. Disable or remove the hosted test's triggers if the
+cluster will no longer be used for this example. An administrator can remove a dedicated runner
+group when it is no longer needed.
+
 ```bash
-signadot sandbox delete <sandbox-name>
-make clean
+signadot sandbox delete storefront-swallow-errors
+signadot sandbox delete storefront-safe-refactor
+signadot sandbox delete pricing-drop-fees
+# Deletes the entire disposable application namespace and its database contents:
+make clean KUBE_CONTEXT=minikube
 ```
-
-## Conclusion
-
-A diff shows you what changed. A sandbox shows you what it does. Boxoffice exists so you can see
-the gap between those two, on changes small enough to approve without thinking.

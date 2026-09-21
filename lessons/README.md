@@ -1,57 +1,20 @@
 # Lessons
 
-Each lesson is one service's `app.js`, published as a tag on that service's image. Nothing else
-about the deployment changes, so a Signadot sandbox can fork the service onto a tag and run it
-against the rest of the cluster untouched.
+Each lesson replaces one service's `app.js`. Build it with `make lesson LESSON=<name>` and inspect
+the difference against `pkg/<service>/app.js`. The remaining services stay on baseline.
 
-Build one with:
-
-```bash
-make lesson LESSON=swallow-errors
-```
-
-Read one as a diff against the service it replaces:
-
-```bash
-diff -u pkg/storefront/app.js lessons/swallow-errors/storefront/app.js
-```
-
-## What each lesson does
-
-| Lesson | Service | Reads As | Actually Does |
+| Lesson | Service | Change | Expected runtime result |
 | --- | --- | --- | --- |
-| `swallow-errors` | storefront | Not failing the request when a seat is taken, so the caller can pick again without a round trip | Answers `201 Created` with a price and no reservation. The customer is quoted for seats nobody is holding. |
-| `safe-refactor` | storefront | Validation pulled into a helper so the happy path reads in one screen | Nothing. Byte-identical responses. This is the counter-example. |
-| `drop-fees` | pricing | Simplifying a quote that carried two amounts summing to a third | `fees` disappears from the contract and the total drops by that amount. |
+| `swallow-errors` | storefront | Logs an inventory refusal and continues to pricing | A competing reservation receives 201 with no hold; conflict checks fail |
+| `safe-refactor` | storefront | Extracts the same validation into a helper | The reservation contract and active-hold retries are unchanged; checks pass |
+| `drop-fees` | pricing | Removes fees from the quote and total | Exact quote checks fail, even with a warm baseline cache |
 
-## Verified behaviour
+Both the conventional guard and the hosted Smart Test cover these three lessons. Only baseline
+and `safe-refactor` should pass. `drop-fees` is also useful for a later contract-diff tutorial.
 
-Against the same request for a seat that is already held:
+For a PR demonstration, copy the lesson into `pkg/`, commit it on a branch, and build that actual
+PR revision. Convenience lesson tags are for exploration, not proof of a PR head's contents.
 
-```
-baseline        HTTP 409  {"error":"seats are not available","unavailable":["A1"]}
-swallow-errors  HTTP 201  {"quote":{"currency":"USD","subtotal":4500,"fees":225,"total":4725},"idempotencyKey":"c-2"}
-safe-refactor   HTTP 409  {"error":"seats are not available","unavailable":["A1"]}
-```
-
-And for a fresh quote:
-
-```
-baseline        "quote":{"currency":"USD","subtotal":2500,"fees":125,"total":2625}
-drop-fees       "quote":{"currency":"USD","subtotal":2500,"total":2500}
-```
-
-## Adding a lesson
-
-Copy the service's `app.js` into `lessons/<name>/<service>/app.js` and make the smallest change
-that reads as an improvement. Two rules hold it together:
-
-1. **Stay drop-in.** Same routes, same ports, same environment. A lesson that changes the
-   deployment shape cannot be forked into a sandbox against unmodified dependencies.
-2. **Justify it in a comment.** A regression that announces itself teaches nothing. The comment is
-   what makes a reviewer reading only the diff agree with the change.
-
-Good candidates for the next one: a status enum whose casing changes, money moved to floating
-point, an idempotency guard removed as redundant, a cache key that loses a dimension, or a retry
-wrapper that returns the last good response on error. Each is invisible in a diff and loud at
-runtime, which is the only rule that matters here.
+Potential future lessons include enum changes, rounding, idempotency and cache keys. They do not
+ship here yet. Add one only with a behavior test and a safe comparison. Static review may detect
+any of them; the purpose is to provide reproducible runtime evidence, not to trick a reviewer.

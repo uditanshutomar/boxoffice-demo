@@ -1,25 +1,18 @@
-# The sandbox a pull request gets. One per pull request, named after it, so
-# anything that needs this pull request's sandbox can look it up by name instead
-# of searching a list and choosing. That matters: a check that searches can pick
-# another pull request's sandbox.
-#
-# The GitHub labels let Signadot link the sandbox to the pull request in its own
-# UI. Signadot requires both together, and checks that the pull request exists.
-#
-# Usage:
-#   signadot sandbox apply -f signadot/pr-sandbox.yaml \
-#     --set cluster=<cluster> --set registry=signadot --set service=storefront --set image=<tag> \
-#     --set repo=<owner/repo> --set pr=<number>
-name: "pr-@{pr}"
+# One sandbox per repository, PR and head revision (<=30 characters).
+# Compute name: node scripts/sandbox-name.cjs "$REPO" "$PR" "$REVISION"
+# IMAGE must be the complete image reference ending in @sha256:<digest>.
+# Usage: signadot sandbox apply -f signadot/pr-sandbox.yaml \
+#   --set name="$SANDBOX" --set cluster="$CLUSTER" --set service="$SERVICE" \
+#   --set image="$IMAGE" --set repo="$REPO" --set pr="$PR" --set revision="$REVISION"
+name: "@{name}"
 spec:
   cluster: "@{cluster}"
-  description: "boxoffice @{service} from pull request @{pr}"
+  description: "boxoffice @{service}: @{repo} PR @{pr} at @{revision}"
   labels:
     demo: boxoffice
     signadot/github-repo: "@{repo}"
     signadot/github-pull-request: "@{pr}"
-  # Long enough that a reader working through a tutorial does not lose the
-  # sandbox midway and see a check fail for the wrong reason.
+    boxoffice/revision: "@{revision}"
   ttl:
     duration: 8h
   forks:
@@ -28,8 +21,11 @@ spec:
         namespace: boxoffice
         name: "@{service}"
       customizations:
+        env:
+          - name: CACHE_NAMESPACE
+            value: "@{name}"
         images:
-          - image: "@{registry}/boxoffice-demo-@{service}:@{image}"
+          - image: "@{image}"
             container: "@{service}"
   defaultRouteGroup:
     endpoints:

@@ -21,6 +21,9 @@ spec:
         namespace: boxoffice
         name: "@{service}"
       customizations:
+        env:
+          - name: CACHE_NAMESPACE
+            value: "@{service}-@{lesson}"
         images:
           - image: "@{registry}/boxoffice-demo-@{service}:@{lesson}"
             container: "@{service}"

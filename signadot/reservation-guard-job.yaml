@@ -1,53 +1,44 @@
-# The contract a reservation has to keep: a valid request holds seats and is
-# quoted with its fees, and seats that are already held are refused. Both
-# assertions pass against the baseline and fail against a lesson that breaks
-# them.
-#
-# Usage:
-#   signadot job submit -f signadot/reservation-guard-job.yaml \
-#     --set sandbox=<sandbox-name> --attach
+# Node.js 18+ is required in the selected Job Runner Group.
+# Usage (baseline): signadot job submit -f signadot/reservation-guard-job.yaml --set runnerGroup=boxoffice-tests --set sandbox= --attach
+# Usage (sandbox): add --set sandbox=<name>
 spec:
   namePrefix: reservation-guard
   runnerGroup: "@{runnerGroup}"
   script: |
     #!/bin/sh
-    base=http://storefront.boxoffice.svc:8080
-    echo "sandbox=${SIGNADOT_SANDBOX_NAME:-baseline}"
-
-    # The guard owns these seats. The request is idempotent, so it returns the
-    # same reservation on every run rather than consuming more of the show.
-    code=$(curl -s -o /tmp/hold.json -w '%{http_code}' -X POST "$base/reservations" \
-      -H 'content-type: application/json' \
-      -d '{"showId":"show-1","seats":["C11","C12"],"currency":"USD","idempotencyKey":"guard-hold"}')
-    echo "POST /reservations (guard seats) -> HTTP $code $(cat /tmp/hold.json)"
-    if [ "$code" != "201" ]; then
-      echo "FAIL: a reservation that can be served must return 201"
-      exit 1
-    fi
-    for field in reservationId status seats expiresAt; do
-      if ! grep -q "\"$field\"" /tmp/hold.json; then
-        echo "FAIL: the reservation is missing $field."
-        echo "      The caller cannot tell what was held or when the hold lapses."
-        exit 1
-      fi
-    done
-    if ! grep -q '"fees"' /tmp/hold.json; then
-      echo "FAIL: the quote no longer carries fees, so the total understates the price."
-      exit 1
-    fi
-
-    # Seats that are already held must be refused, not quoted.
-    code=$(curl -s -o /tmp/dup.json -w '%{http_code}' -X POST "$base/reservations" \
-      -H 'content-type: application/json' \
-      -d '{"showId":"show-1","seats":["C11","C12"],"currency":"USD","idempotencyKey":"guard-double"}')
-    echo "POST /reservations (seats held)  -> HTTP $code $(cat /tmp/dup.json)"
-    if [ "$code" -lt 400 ]; then
-      echo "FAIL: seats that are already held returned HTTP $code."
-      echo "      The caller is told the booking succeeded while holding nothing."
-      exit 1
-    fi
-
-    echo "PASS: reservations report conflicts and quotes carry their fees"
+    set -eu
+    node <<'NODE'
+    const assert = require('node:assert/strict')
+    const base = process.env.BOXOFFICE_BASE_URL || 'http://storefront.boxoffice.svc:8080'
+    async function request(body) {
+      const res = await fetch(base + '/reservations', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
+      })
+      const payload = await res.json()
+      console.log(`POST /reservations -> HTTP ${res.status} ${JSON.stringify(payload)}`)
+      return { code: res.status, body: payload }
+    }
+    async function main() {
+      console.log(`sandbox=${process.env.SIGNADOT_SANDBOX_NAME || 'baseline'}`)
+      const input = { showId: 'show-1', seats: ['C11', 'C12'], currency: 'USD', idempotencyKey: 'guard-hold-v2' }
+      const held = await request(input)
+      assert.equal(held.code, 201, 'a valid reservation must return 201')
+      assert.match(held.body.reservationId, /^rsv_[a-f0-9]+$/)
+      assert.equal(held.body.status, 'held')
+      assert.deepEqual(held.body.seats, input.seats)
+      assert.ok(Date.parse(held.body.expiresAt) > Date.now(), 'hold must expire in the future')
+      assert.equal(held.body.idempotencyKey, input.idempotencyKey)
+      assert.deepEqual(held.body.quote, { currency: 'USD', subtotal: 5000, fees: 250, total: 5250 })
+      assert.deepEqual(await request(input), held, 'active-hold retry must be identical')
+      const conflict = await request({ ...input, idempotencyKey: 'guard-conflict-v2' })
+      assert.equal(conflict.code, 409, 'already-held seats must return 409; 5xx is not a passing conflict test')
+      assert.equal(conflict.body.error, 'seats are not available')
+      assert.deepEqual(conflict.body.unavailable, input.seats)
+      console.log('PASS: hold, fees, idempotent retry and conflict contract')
+    }
+    main().catch(err => { console.error('FAIL:', err.message); process.exitCode = 1 })
+    NODE
   routingContext:
     sandbox: "@{sandbox}"
   trafficManager:

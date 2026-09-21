@@ -1,84 +1,85 @@
 ---
 name: signadot-cli
-description: Create a Signadot sandbox for a pull request and run this repository's tests against it, using the signadot CLI with an API key. Use when an agent running outside the cluster — a hosted code reviewer, a CI job — needs to verify a change against real dependencies.
+description: Verify this repository's current pull request against real dependencies using a Signadot sandbox. Use MCP with configured hosted Smart Test triggers, or the CLI from an authenticated developer or CI environment.
 ---
 
-# Verifying a change in a Signadot sandbox
+# Verify boxoffice in Signadot
 
-Signadot's published skills assume a developer's laptop: they want a devbox or `signadot local
-connect`, and they reach services over in-cluster DNS. An agent running somewhere else has
-neither. This skill covers that case — an API key, outbound HTTPS, and nothing else.
+Keep verification separate from edits in this task. Report observed results and distinguish
+application failures from setup, transport and infrastructure failures.
 
-## What you need
+## Bind the sandbox to the code
 
-- The `signadot` CLI on the path. Install it with
-  `curl -sSLf https://raw.githubusercontent.com/signadot/cli/main/scripts/install.sh | sh`.
-- `SIGNADOT_API_KEY` and `SIGNADOT_ORG` in the environment. Never print either.
-- The repository checked out, so the specs under `signadot/` are available.
+Obtain the full repository name, PR number, current full head SHA and changed service from the
+PR context. Only one changed application service is supported by this tutorial. If more than
+one service changed, stop and ask for a multi-fork specification.
 
-Confirm all three before going further:
+Use the complete image digest from a successful `Build PR image` workflow for that exact head.
+A lesson tag or branch-name convention does not establish what code ran. If the commit changes,
+prepare a new build and sandbox. Do not reuse evidence from the old commit.
+
+Compute the sandbox name with:
 
 ```bash
-signadot cluster list
+node scripts/sandbox-name.cjs "$REPO" "$PR" "$REVISION"
 ```
 
-If that fails, stop and report the error. Everything below depends on it.
+Render `signadot/pr-sandbox.yaml` with that name, the full `IMAGE` reference, service, cluster,
+repository, PR and revision. Its cache namespace prevents a pricing fork from consuming baseline
+quotes. GitHub labels link the sandbox to a real PR; the Signadot GitHub App must have access.
 
-## Creating the sandbox
+## MCP path
 
-The sandbox forks one service onto the image built from this pull request and leaves every other
-service in the cluster alone. That is the point: the change runs against real dependencies, not
-against mocks.
+A hosted `boxoffice-reservation-contract` Smart Test must already contain the repository's
+`smart-tests/reservations/create-reservation.star`, with a trigger for the selected baseline
+workload in the intended cluster. At least one managed Smart Test runner must be ready.
+
+Use the Signadot MCP workflow guidance and discovery tools, then create the rendered sandbox.
+Present the specification and obtain any confirmation required by the tool/client. Respect
+cancellation. This task does not authorize changes to connection permissions or credentials.
+
+Poll `get_sandbox` within a five-minute deadline. Sandbox creation activates a configured
+hosted trigger; MCP does not currently provide a direct test-run tool. Confirm readiness and
+`status.testExecutions`, including phase counts, check counts and traffic differences. A
+`succeeded` execution alone does not mean its checks passed. Missing results are not success.
+
+The current sandbox summary can be checked deterministically from a saved response:
+
+```bash
+node scripts/check-evidence.cjs sandbox.json "$REPO" "$PR" "$REVISION" "$IMAGE"
+```
+
+Also inspect the named hosted execution in Signadot for its actual checks. The sandbox summary
+aggregates tests and cannot establish which test ran from counts alone.
+
+## CLI path for a developer or CI
+
+Use this only where Signadot CLI authentication is intentionally provisioned. Read
+`scripts/coderabbit-setup.sh` if a Linux CLI installation is needed. Use `SIGNADOT_API_KEY` and
+`SIGNADOT_ORG` normally; never print the key, put it in source, or disguise its variable name to
+work around a hosted environment's behavior.
 
 ```bash
 signadot sandbox apply -f signadot/pr-sandbox.yaml \
-  --set cluster="$CLUSTER" \
-  --set registry="$REGISTRY" \
-  --set service="$SERVICE" \
-  --set image="$IMAGE_TAG" \
-  --set repo="$REPO" \
-  --set pr="$PR_NUMBER" \
+  --set name="$SANDBOX" --set cluster="$CLUSTER" --set service="$SERVICE" \
+  --set image="$IMAGE" --set repo="$REPO" --set pr="$PR" --set revision="$REVISION" \
   --wait-timeout 5m
 ```
 
-Both GitHub labels are set together — Signadot rejects one without the other, and checks that the
-pull request exists. Those labels are how a reviewer later finds the sandbox belonging to this
-pull request.
-
-## Running the tests
+With hosted triggers configured, inspect the resulting Smart Test. To run the conventional
+guard independently, use a Job Runner Group with Node.js 18 or newer:
 
 ```bash
 signadot job submit -f signadot/reservation-guard-job.yaml \
-  --set sandbox="$SANDBOX_NAME" \
-  --set runnerGroup="$RUNNER_GROUP" \
-  --attach
+  --set sandbox="$SANDBOX" --set runnerGroup="$RUNNER_GROUP" --attach
 ```
 
-`--attach` streams the output and exits non-zero when the job fails, so the exit code is the
-result. Report the output verbatim, including the HTTP status codes it prints: those are the
-evidence, and a summary of them is not.
+Job evidence appears under `status.jobs`; Smart Test evidence appears under
+`status.testExecutions`. They are different. The included MCP check requires the Smart Test.
 
-To read a finished job again:
+## Report and cleanup
 
-```bash
-signadot job get "$JOB_NAME" -o json
-signadot logs --job "$JOB_NAME"
-```
-
-## Cleaning up
-
-Delete the sandbox unless you were asked to leave it running. A reviewer reading the sandbox after
-the fact needs it alive, so check before removing it.
-
-```bash
-signadot sandbox delete "$SANDBOX_NAME"
-```
-
-## Rules
-
-- **Report failures as failures.** A job that exits non-zero means the change behaved differently
-  from the baseline. Do not describe it as a flaky test or a test that needs updating.
-- **Never print the API key,** and never write it into a file that the repository tracks.
-- **Do not edit repository files** while verifying. Verification and fixing are separate jobs.
-- **One sandbox per pull request.** Applying the same spec again updates the existing sandbox
-  rather than creating a second one.
+Report repository, PR head, sandbox name, image digest, readiness, preview URL, execution ID,
+check outcomes and actual failure output. Say explicitly when no test ran. Do not present a
+local CLI or direct MCP probe as a CodeRabbit agent run. Leave the sandbox for the reviewer;
+delete it after review or let its eight-hour TTL expire.
