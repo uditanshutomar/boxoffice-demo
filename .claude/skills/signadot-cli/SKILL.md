@@ -43,6 +43,11 @@ hosted trigger; MCP does not currently provide a direct test-run tool. Confirm r
 `status.testExecutions`, including phase counts, check counts and traffic differences. A
 `succeeded` execution alone does not mean its checks passed. Missing results are not success.
 
+`get_sandbox` wraps the record under `sandbox`. Inspect its `spec.forks` and
+`status.testExecutions` directly. `get_workload_object` for the `forkOf` Deployment returns
+the baseline; its image is expected to differ from the fork's image. Do not treat that as a
+sandbox image mismatch or substitute baseline readiness for sandbox readiness.
+
 The current sandbox summary can be checked deterministically from a saved response:
 
 ```bash
@@ -51,6 +56,10 @@ node scripts/check-evidence.cjs sandbox.json "$REPO" "$PR" "$REVISION" "$IMAGE"
 
 Also inspect the named hosted execution in Signadot for its actual checks. The sandbox summary
 aggregates tests and cannot establish which test ran from counts alone.
+
+The CodeRabbit custom check is advisory evidence: its Inconclusive outcome does not block a PR.
+The trusted developer/CI publisher described in the README enforces the separate required
+`Signadot / reservation-contract` commit status. Do not publish that status from a coding task.
 
 ## CLI path for a developer or CI
 
