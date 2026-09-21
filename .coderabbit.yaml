@@ -8,13 +8,16 @@
 # The MCP connection itself is configured in CodeRabbit's web interface, not
 # here. Paste this into its Prompt Guidance field:
 #
-#   Signadot runs a live Kubernetes sandbox for each pull request in {repo}.
-#   This pull request's sandbox is named pr-{pr}. Call get_sandbox with exactly
-#   that name. Do not call list_sandboxes and do not search by label: other pull
-#   requests have sandboxes of their own, and a search can return one of those.
-#   In the review, state the name you looked up, whether the sandbox is ready,
-#   the image each fork runs, and its preview URL. If get_sandbox returns
-#   nothing, say that this pull request has no live sandbox. Use only read tools.
+#   Signadot runs a live Kubernetes sandbox for pull requests in {repo}. Each
+#   one is named after its pull request, so for pull request {pr} call
+#   get_sandbox with the name pr-{pr}. Do not call list_sandboxes and do not
+#   search by label: other pull requests have sandboxes of their own, and the
+#   only sandbox that counts is the one whose name matches this pull request. If
+#   get_sandbox returns nothing, say that this pull request has no live sandbox.
+#   Use only read tools.
+#
+#   In the review, state the sandbox name you looked up, whether it is ready,
+#   the image each fork runs, and its preview URL.
 #
 #   The sandbox runs this pull request's code against its real dependencies, so
 #   status.jobs.phaseCounts is evidence about how the change actually behaves.
@@ -38,6 +41,14 @@ reviews:
   # Shows the "Additional context used" section, which is where the sandbox
   # state the review read over MCP appears.
   review_details: true
+
+  # Without this, a pre-merge check in error mode only prints a red row: the
+  # commit status still says success and the pull request stays mergeable. With
+  # it, CodeRabbit withholds its approval while a check is failing and requests
+  # changes instead, which a branch rule requiring an approving review turns
+  # into a real block.
+  request_changes_workflow: true
+
   auto_review:
     enabled: true
     # If your pull requests target a branch other than the default one, add
