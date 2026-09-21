@@ -47,24 +47,31 @@ reviews:
       - name: "Verified in a live sandbox"
         mode: error
         instructions: |
-          Use the Signadot MCP tools to check this pull request's live sandbox
-          and what the tests run against it reported.
-          1. Call list_sandboxes. Select the sandbox whose labels include
-             signadot/github-pull-request equal to this pull request's number.
-          2. Call get_sandbox with that sandbox's name.
+          Check the sandbox belonging to this pull request, and what the tests
+          run against it reported.
+
+          This pull request's sandbox is named `pr-{pr}`. Call get_sandbox with
+          exactly that name. Do not call list_sandboxes, and do not search for a
+          sandbox by label. Other pull requests have sandboxes of their own, and
+          a search can return one of those; the only sandbox that counts here is
+          `pr-{pr}`.
+          State the literal name you looked up in your explanation, so it is
+          clear which sandbox was read.
+
           Pass only if all of these hold:
-            - a matching sandbox exists;
+            - get_sandbox returns a sandbox with that exact name;
             - status.ready is true;
             - status.jobs.phaseCounts reports no jobs in the failed phase.
-          Fail if no matching sandbox exists, if status.ready is false, or if any
-          job is in the failed phase.
+          Fail if get_sandbox returns nothing, if status.ready is false, or if
+          any job is in the failed phase.
+
           When a job has failed, say that this change was verified in its own
           sandbox and the verification failed, and give the failed and succeeded
           counts. A failing job is evidence about the change, not a sign that the
           test needs updating, so never suggest changing the test to make the
           check pass.
-          In every result state the sandbox name, whether it is ready, the image
-          each fork runs, and the job phase counts.
+          In every result state the sandbox name you looked up, whether it is
+          ready, the image each fork runs, and the job phase counts.
 
   finishing_touches:
     custom:
@@ -89,6 +96,7 @@ reviews:
                --set image=<the tag from step 2>
                --set repo=<owner/repo> --set pr=<this pull request's number>
                --wait-timeout 5m
+             The sandbox this creates is named pr-<that number>.
           4. Run the guard job against it:
              signadot job submit -f signadot/reservation-guard-job.yaml
                --set sandbox=<the sandbox name>

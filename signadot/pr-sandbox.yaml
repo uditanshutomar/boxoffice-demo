@@ -1,13 +1,16 @@
-# The sandbox a pull request gets. Identical to lesson-sandbox.yaml apart from
-# the GitHub labels, which are how a reviewer finds the sandbox that belongs to
-# a pull request. Signadot requires both labels together, and checks that the
-# pull request exists.
+# The sandbox a pull request gets. One per pull request, named after it, so
+# anything that needs this pull request's sandbox can look it up by name instead
+# of searching a list and choosing. That matters: a check that searches can pick
+# another pull request's sandbox.
+#
+# The GitHub labels let Signadot link the sandbox to the pull request in its own
+# UI. Signadot requires both together, and checks that the pull request exists.
 #
 # Usage:
 #   signadot sandbox apply -f signadot/pr-sandbox.yaml \
 #     --set cluster=<cluster> --set service=storefront --set image=<tag> \
 #     --set repo=<owner/repo> --set pr=<number>
-name: "pr-@{pr}-@{service}"
+name: "pr-@{pr}"
 spec:
   cluster: "@{cluster}"
   description: "boxoffice @{service} from pull request @{pr}"
