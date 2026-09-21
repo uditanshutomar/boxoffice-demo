@@ -139,6 +139,18 @@ its dotfiles. Nested `.github/workflows` inside an examples monorepo do not run 
 - `.claude/skills/signadot-cli/SKILL.md` describes verification and its failure conditions. It respects tool confirmation and cancellation, and does not rename credentials.
 - `scripts/check-evidence.cjs` deterministically checks the sandbox summary against an expected build identity. It does not prove which named test ran; inspect the hosted execution too.
 
+After invoking `@coderabbitai run verify-in-signadot`, open the **Coding Agent task started**
+link in the reply. Read the proposed sandbox specification and answer its confirmation in
+**Steer the agent**. A task-list status of **No changes made** can mean the task is waiting for
+that answer; it does not prove a sandbox or test was created. The templates explicitly specify
+the environment override's `container` and `operation: upsert`, as required by MCP.
+
+**Live validation limitation (2026-09-21):** In the tested CodeRabbit connection, both lesson PRs'
+creation calls reported client cancellation after the specifications were confirmed. Both tasks
+stopped without confirmed sandbox creation or hosted test results. Application tests, hosted triggers and
+MCP result reads have been verified separately; the full CodeRabbit creation-to-review loop
+is not yet verified. Respect cancellation and diagnose the client interaction before retrying.
+
 A new commit needs a new build and sandbox. Never pass the old lesson tag off as the current PR's
 code. A passing runtime check supplements static findings; it does not automatically make a change
 safe or guarantee CodeRabbit approval.

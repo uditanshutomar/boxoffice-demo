@@ -22,7 +22,9 @@ spec:
         name: "@{service}"
       customizations:
         env:
-          - name: CACHE_NAMESPACE
+          - container: "@{service}"
+            operation: upsert
+            name: CACHE_NAMESPACE
             value: "@{service}-@{lesson}"
         images:
           - image: "@{registry}/boxoffice-demo-@{service}:@{lesson}"

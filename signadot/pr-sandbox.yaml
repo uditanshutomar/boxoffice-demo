@@ -22,7 +22,9 @@ spec:
         name: "@{service}"
       customizations:
         env:
-          - name: CACHE_NAMESPACE
+          - container: "@{service}"
+            operation: upsert
+            name: CACHE_NAMESPACE
             value: "@{name}"
         images:
           - image: "@{image}"
