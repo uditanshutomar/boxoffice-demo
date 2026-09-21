@@ -51,6 +51,16 @@ make deploy
 This builds each service at `:baseline`, loads the images into the cluster, applies the manifests
 and seeds one show with three rows of twelve seats.
 
+`make images` loads images straight into minikube. On any other cluster, push them to a registry
+it can pull from and deploy from the same place:
+
+```bash
+make images REGISTRY=ghcr.io/you LOAD="docker push"
+make deploy REGISTRY=ghcr.io/you
+```
+
+`make deploy` rewrites the image registry in the manifests to match, so the two stay in step.
+
 The deployments carry `sidecar.signadot.com/inject: "true"`. Signadot's DevMesh sidecar is what
 routes a request to a sandbox; without it a sandbox stays at `RoutingNotReady`.
 
@@ -75,7 +85,8 @@ the second request in it is always a genuine conflict.
 make lesson LESSON=swallow-errors
 
 signadot sandbox apply -f signadot/lesson-sandbox.yaml \
-  --set cluster=<your-cluster> --set service=storefront --set lesson=swallow-errors \
+  --set cluster=<your-cluster> --set registry=signadot \
+  --set service=storefront --set lesson=swallow-errors \
   --wait-timeout 5m
 
 signadot job submit -f signadot/reservation-guard-job.yaml \
@@ -104,7 +115,8 @@ Four lines, with a comment explaining why they are an improvement.
 ```bash
 make lesson LESSON=safe-refactor
 signadot sandbox apply -f signadot/lesson-sandbox.yaml \
-  --set cluster=<your-cluster> --set service=storefront --set lesson=safe-refactor \
+  --set cluster=<your-cluster> --set registry=signadot \
+  --set service=storefront --set lesson=safe-refactor \
   --wait-timeout 5m
 signadot job submit -f signadot/reservation-guard-job.yaml \
   --set sandbox=storefront-safe-refactor --set runnerGroup=<your-runner-group> --attach
@@ -117,8 +129,11 @@ only ever fails teaches nothing, so the counter-example matters as much as the r
 
 The repository also ships Smart Tests under `smart-tests/`, which compare a sandbox's responses
 against the baseline rather than asserting on them. They need Smart Test Runners enabled for your
-cluster under **Platform → Managed Runners**, and at least one runner pod actually running; the
-guard job above needs only a Job Runner Group.
+cluster under **Platform → Managed Runners**, and — this is the part to check — at least one
+runner pod actually running in the cluster. If `Smart Test Runners` shows as "Not configured" for
+your cluster, or runs end in `timed out after 5m` with no pod appearing, the runner has not been
+provisioned and no Smart Test will execute. The guard job above needs only a Job Runner Group and
+is unaffected.
 
 ## Notes For Extending This
 

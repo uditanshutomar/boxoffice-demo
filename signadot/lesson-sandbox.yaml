@@ -3,7 +3,8 @@
 #
 # Usage:
 #   signadot sandbox apply -f signadot/lesson-sandbox.yaml \
-#     --set cluster=<cluster> --set service=storefront --set lesson=swallow-errors
+#     --set cluster=<cluster> --set registry=signadot \
+#     --set service=storefront --set lesson=swallow-errors
 name: "@{service}-@{lesson}"
 spec:
   cluster: "@{cluster}"

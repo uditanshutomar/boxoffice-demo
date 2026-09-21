@@ -1,6 +1,7 @@
 # Build the demo images into the local cluster and deploy the baseline.
 #   make images      build every service at :baseline
-#   make deploy      apply the manifests and seed the database
+#   make deploy      apply the manifests and seed the database, rewriting the
+#                    image registry to match REGISTRY
 #   make lesson LESSON=swallow-errors
 #                    build the one service that lesson changes, tagged with it
 #   make clean       remove the namespace
@@ -28,7 +29,9 @@ deploy:
 	kubectl -n boxoffice create configmap boxoffice-db-init \
 	  --from-file=01-schema.sql=db/schema.sql --from-file=02-seed.sql=db/seed.sql \
 	  --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply -f k8s/
+	@for f in k8s/*.yaml; do \
+	  sed 's|image: signadot/boxoffice-demo-|image: $(REGISTRY)/boxoffice-demo-|' $$f; echo '---'; \
+	done | kubectl apply -f -
 	kubectl -n boxoffice rollout status deploy/postgres --timeout=180s
 	kubectl -n boxoffice rollout status deploy/redis --timeout=180s
 	@for s in $(SERVICES); do kubectl -n boxoffice rollout status deploy/$$s --timeout=180s; done

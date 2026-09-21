@@ -8,7 +8,7 @@
 #
 # Usage:
 #   signadot sandbox apply -f signadot/pr-sandbox.yaml \
-#     --set cluster=<cluster> --set service=storefront --set image=<tag> \
+#     --set cluster=<cluster> --set registry=signadot --set service=storefront --set image=<tag> \
 #     --set repo=<owner/repo> --set pr=<number>
 name: "pr-@{pr}"
 spec:
