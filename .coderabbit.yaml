@@ -24,7 +24,7 @@ reviews:
           Call get_sandbox with that exact name. Do not search a sandbox list.
           Confirm its signadot/github-repo and signadot/github-pull-request
           labels match the PR, and boxoffice/revision equals the full head SHA.
-          Confirm the single fork's complete image reference ends in @sha256
+          Confirm the single fork's complete image reference ends in @sha256:<64 hex characters>
           and matches the digest reported by the successful "Build PR image"
           workflow run for that head commit. Missing build identity is
           Inconclusive, never a pass. A lesson tag is insufficient.
