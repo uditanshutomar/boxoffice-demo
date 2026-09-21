@@ -3,8 +3,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if ! command -v initdb >/dev/null && command -v brew >/dev/null; then
-  pg_prefix=$(brew --prefix postgresql@16)
-  export PATH="$pg_prefix/bin:$PATH"
+  if pg_prefix=$(brew --prefix postgresql@16 2>/dev/null); then
+    export PATH="$pg_prefix/bin:$PATH"
+  fi
 fi
 for cmd in node npm initdb pg_ctl createdb psql redis-server; do
   command -v "$cmd" >/dev/null || { echo "Missing prerequisite: $cmd" >&2; exit 1; }
