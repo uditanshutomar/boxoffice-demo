@@ -8,12 +8,13 @@
 # The MCP connection itself is configured in CodeRabbit's web interface, not
 # here. Paste this into its Prompt Guidance field:
 #
-#   Signadot runs a live Kubernetes sandbox for pull requests in {repo}. For
-#   pull request {pr}, call list_sandboxes and select the sandbox whose labels
-#   include signadot/github-pull-request = "{pr}". Then call get_sandbox on it.
-#   In the review, report whether the sandbox is ready, the image each fork
-#   runs, and its preview URL. If no sandbox matches, say that this pull request
-#   has no live sandbox. Use only read tools.
+#   Signadot runs a live Kubernetes sandbox for each pull request in {repo}.
+#   This pull request's sandbox is named pr-{pr}. Call get_sandbox with exactly
+#   that name. Do not call list_sandboxes and do not search by label: other pull
+#   requests have sandboxes of their own, and a search can return one of those.
+#   In the review, state the name you looked up, whether the sandbox is ready,
+#   the image each fork runs, and its preview URL. If get_sandbox returns
+#   nothing, say that this pull request has no live sandbox. Use only read tools.
 #
 #   The sandbox runs this pull request's code against its real dependencies, so
 #   status.jobs.phaseCounts is evidence about how the change actually behaves.
@@ -92,7 +93,7 @@ reviews:
           3. Create the sandbox for this pull request:
              signadot sandbox apply -f signadot/pr-sandbox.yaml
                --set cluster="$SIGNADOT_CLUSTER"
-               --set registry=signadot
+               --set registry="$SIGNADOT_REGISTRY"
                --set service=<the service from step 2>
                --set image=<the tag from step 2>
                --set repo=<owner/repo> --set pr=<this pull request's number>
