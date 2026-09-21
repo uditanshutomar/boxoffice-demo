@@ -7,7 +7,7 @@ Every lesson in `lessons/` is a small, plausible edit — the kind an AI agent w
 code up — published as a tag on one service's image. Run a lesson in a Signadot sandbox and its
 behaviour diverges from the baseline while the diff still looks reasonable.
 
-## What You Will Build
+## What you will build
 
 Three services and their dependencies, in one namespace:
 
@@ -41,7 +41,7 @@ baseline shows real differences rather than noise.
 - A [Job Runner Group](https://www.signadot.com/docs/reference/job-runner-groups) for running the guard job
 - Docker, and `minikube` if that is where you are running
 
-## Step 1: Deploy The Baseline
+## Step 1: Deploy the baseline
 
 ```bash
 make images
@@ -64,7 +64,7 @@ make deploy REGISTRY=ghcr.io/you
 The deployments carry `sidecar.signadot.com/inject: "true"`. Signadot's DevMesh sidecar is what
 routes a request to a sandbox; without it a sandbox stays at `RoutingNotReady`.
 
-## Step 2: Run The Guard Against The Baseline
+## Step 2: Run the guard against the baseline
 
 ```bash
 signadot job submit -f signadot/reservation-guard-job.yaml \
@@ -79,7 +79,7 @@ The job holds seats C11 and C12 under a fixed idempotency key, so every run retu
 reservation rather than consuming more of the show. That is why it can be run repeatedly, and why
 the second request in it is always a genuine conflict.
 
-## Step 3: Run A Lesson
+## Step 3: Run a lesson
 
 ```bash
 make lesson LESSON=swallow-errors
@@ -110,7 +110,7 @@ diff -u pkg/storefront/app.js lessons/swallow-errors/storefront/app.js
 
 Four lines, with a comment explaining why they are an improvement.
 
-## Step 4: Run The Counter-Example
+## Step 4: Run the counter-example
 
 ```bash
 make lesson LESSON=safe-refactor
@@ -135,7 +135,7 @@ your cluster, or runs end in `timed out after 5m` with no pod appearing, the run
 provisioned and no Smart Test will execute. The guard job above needs only a Job Runner Group and
 is unaffected.
 
-## Notes For Extending This
+## Notes for extending this
 
 - **Forward the routing header.** `storefront` passes `baggage` on to its downstream calls. A
   service that does not forward it sends every request to the baseline, so a sandbox of anything behind it
@@ -144,6 +144,19 @@ is unaffected.
   then passes against code that never ran. `pricing` keeps a short time to live for this reason.
 - **Stay drop-in.** A lesson changes one service's code and nothing else — same routes, same
   ports, same environment — so it can be forked against untouched dependencies.
+
+## What the CodeRabbit files are for
+
+Three files here belong to the
+[runtime-aware code review](https://www.signadot.com/docs/tutorials/runtime-aware-code-review)
+tutorial, which has CodeRabbit create the sandbox, run the guard job and read the result over
+Signadot's MCP server. They are inert unless you follow it.
+
+| Path | Role |
+| --- | --- |
+| `.coderabbit.yaml` | The review settings, the `verify-in-signadot` recipe and the pre-merge check that reads the sandbox |
+| `.claude/skills/signadot-cli/` | The skill an agent follows to create a sandbox and run the job with an API key alone |
+| `scripts/coderabbit-setup.sh` | Setup script for a CodeRabbit coding environment; installs a pinned Signadot CLI |
 
 ## Cleanup
 

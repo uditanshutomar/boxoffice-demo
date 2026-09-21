@@ -3,13 +3,13 @@ name: signadot-cli
 description: Create a Signadot sandbox for a pull request and run this repository's tests against it, using the signadot CLI with an API key. Use when an agent running outside the cluster — a hosted code reviewer, a CI job — needs to verify a change against real dependencies.
 ---
 
-# Verifying A Change In A Signadot Sandbox
+# Verifying a change in a Signadot sandbox
 
 Signadot's published skills assume a developer's laptop: they want a devbox or `signadot local
 connect`, and they reach services over in-cluster DNS. An agent running somewhere else has
 neither. This skill covers that case — an API key, outbound HTTPS, and nothing else.
 
-## What You Need
+## What you need
 
 - The `signadot` CLI on the path. Install it with
   `curl -sSLf https://raw.githubusercontent.com/signadot/cli/main/scripts/install.sh | sh`.
@@ -24,7 +24,7 @@ signadot cluster list
 
 If that fails, stop and report the error. Everything below depends on it.
 
-## Creating The Sandbox
+## Creating the sandbox
 
 The sandbox forks one service onto the image built from this pull request and leaves every other
 service in the cluster alone. That is the point: the change runs against real dependencies, not
@@ -45,7 +45,7 @@ Both GitHub labels are set together — Signadot rejects one without the other, 
 pull request exists. Those labels are how a reviewer later finds the sandbox belonging to this
 pull request.
 
-## Running The Tests
+## Running the tests
 
 ```bash
 signadot job submit -f signadot/reservation-guard-job.yaml \
@@ -65,7 +65,7 @@ signadot job get "$JOB_NAME" -o json
 signadot logs --job "$JOB_NAME"
 ```
 
-## Cleaning Up
+## Cleaning up
 
 Delete the sandbox unless you were asked to leave it running. A reviewer reading the sandbox after
 the fact needs it alive, so check before removing it.

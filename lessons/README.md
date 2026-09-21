@@ -16,7 +16,7 @@ Read one as a diff against the service it replaces:
 diff -u pkg/storefront/app.js lessons/swallow-errors/storefront/app.js
 ```
 
-## What Each Lesson Does
+## What each lesson does
 
 | Lesson | Service | Reads As | Actually Does |
 | --- | --- | --- | --- |
@@ -24,7 +24,7 @@ diff -u pkg/storefront/app.js lessons/swallow-errors/storefront/app.js
 | `safe-refactor` | storefront | Validation pulled into a helper so the happy path reads in one screen | Nothing. Byte-identical responses. This is the counter-example. |
 | `drop-fees` | pricing | Simplifying a quote that carried two amounts summing to a third | `fees` disappears from the contract and the total drops by that amount. |
 
-## Verified Behaviour
+## Verified behaviour
 
 Against the same request for a seat that is already held:
 
@@ -41,7 +41,7 @@ baseline        "quote":{"currency":"USD","subtotal":2500,"fees":125,"total":262
 drop-fees       "quote":{"currency":"USD","subtotal":2500,"total":2500}
 ```
 
-## Adding A Lesson
+## Adding a lesson
 
 Copy the service's `app.js` into `lessons/<name>/<service>/app.js` and make the smallest change
 that reads as an improvement. Two rules hold it together:
