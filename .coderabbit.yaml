@@ -67,9 +67,17 @@ reviews:
           to obtain the full image digest, service and revision. Never derive
           an image from the branch name or use a mutable lesson tag.
           Render signadot/pr-sandbox.yaml with those values and the intended
-          cluster. Present the exact specification for any confirmation required
-          by the MCP tool. Respect cancellation; do not change client capabilities
-          or bypass confirmation. Create the sandbox using create_sandbox.
+          cluster, and print that exact specification before creating anything.
+          Then call create_sandbox. Use the client's supported confirmation
+          mechanism for the user's authorized choice; displaying YAML does not
+          itself answer an MCP elicitation. In the observed Signadot form,
+          review_spec: true stops creation and returns a tool error requesting
+          YAML review. An authorized accept with review_spec: false proceeds.
+          HTTP 202 only acknowledges a response submission; inspect the original
+          tool result and independently confirm the sandbox exists. If the
+          confirmation cannot be completed, stop and report that limitation.
+          Respect cancellation; do not change capabilities, suppress confirmation,
+          or retry creation blindly.
           Creation triggers the hosted test only if its matching trigger and
           managed runner are configured. Do not claim create_sandbox ran a test.
           Read get_sandbox until the hosted executions reach a terminal phase,
