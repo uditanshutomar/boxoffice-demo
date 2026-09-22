@@ -140,17 +140,31 @@ its dotfiles. Nested `.github/workflows` inside an examples monorepo do not run 
 - `scripts/check-evidence.cjs` deterministically checks the sandbox summary against an expected build identity. It does not prove which named test ran; inspect the hosted execution too.
 - `scripts/publish-runtime-status.cjs` additionally verifies the successful exact-head build artifact and the named hosted execution's five baseline and sandbox checks, then publishes a GitHub commit status.
 
-After invoking `@coderabbitai run verify-in-signadot`, open the **Coding Agent task started**
-link in the reply. Read the proposed sandbox specification and answer its confirmation in
-**Steer the agent**. A task-list status of **No changes made** can mean the task is waiting for
-that answer; it does not prove a sandbox or test was created. The templates explicitly specify
-the environment override's `container` and `operation: upsert`, as required by MCP.
+Add the saved connection to the Review Base Scope and inspect any named repository scope,
+which can exclude or override it. Verify the tools are available to the actual review and
+coding task; one surface's successful lookup does not establish access in another.
 
-**Live validation limitation (2026-09-21):** In the tested CodeRabbit connection, both lesson PRs'
-creation calls reported client cancellation after the specifications were confirmed. Both tasks
-stopped without confirmed sandbox creation or hosted test results. Application tests, hosted triggers and
-MCP result reads have been verified separately; the full CodeRabbit creation-to-review loop
-is not yet verified. Respect cancellation and diagnose the client interaction before retrying.
+After invoking `@coderabbitai run verify-in-signadot`, open the **Coding Agent task started**
+link in the reply. Read the proposed sandbox specification and answer any task question in
+**Steer the agent**. An MCP elicitation is a separate structured exchange: use the client's
+supported confirmation control if one is presented. A chat reply or displayed YAML does not
+prove that exchange completed. If no supported confirmation path is available, report the
+limitation and stop. **No changes made** does not establish that a sandbox or test was created.
+The templates explicitly specify the environment override's `container` and `operation: upsert`,
+as required by MCP.
+
+In the observed Signadot form, `accept` with `review_spec: false` proceeds. Setting
+`review_spec: true` stops creation and returns a tool error asking for YAML review; explicit
+`cancel` returns a cancellation error. HTTP 202 only acknowledges the submitted response.
+Inspect the final `create_sandbox` result and independently retrieve the expected sandbox.
+
+**Live validation limitation (2026-09-21):** The tested CodeRabbit tasks reported cancellation
+after task-level authorization; their underlying MCP responses were not captured. A separate
+reference client completed creation over HTTP/1.1 and HTTP/2 by answering while the original
+stream remained open. That verifies the reference-client path, not CodeRabbit creation.
+Application tests, hosted triggers and MCP result reads have been verified separately; the full
+CodeRabbit creation-to-review loop is not yet verified. Respect cancellation and obtain new
+diagnostic evidence before retrying.
 
 A new commit needs a new build and sandbox. Never pass the old lesson tag off as the current PR's
 code. A passing runtime check supplements static findings; it does not automatically make a change

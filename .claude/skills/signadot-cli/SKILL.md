@@ -35,15 +35,19 @@ A hosted `boxoffice-reservation-contract` Smart Test must already contain the re
 workload in the intended cluster. At least one managed Smart Test runner must be ready.
 
 Use the Signadot MCP workflow guidance and discovery tools, then create the rendered sandbox.
-**Print the full rendered specification in your report before calling `create_sandbox`,** so it has
-already been shown.
+**Print the full rendered specification in your report before calling `create_sandbox`** so the
+user can inspect the intended change.
 
-`create_sandbox` may then ask the client to confirm. Signadot's confirmation offers a single
-boolean, `review_spec`, and its own description defines `true` as *"stop the sandbox creation
-process and display the specification for review"*. Answering `true` therefore **halts creation**;
-the call returns success and no sandbox is made. Because you have already printed the
-specification, answer so that creation proceeds, and say in your report that you did. Only answer
-`true` if a human has asked to inspect the specification before creation.
+`create_sandbox` may then send an MCP elicitation. Use the client's supported confirmation
+mechanism to communicate the user's authorized choice. Displaying YAML or receiving a chat
+message does not itself establish that the pending MCP request has been answered.
+
+In the observed Signadot form, `review_spec: true` requests a stop for specification review.
+The final tool result has `isError: true` and asks the client to display YAML; it is not a
+successful creation. An authorized `accept` response with `review_spec: false` proceeds.
+HTTP 202 only acknowledges the submitted elicitation response. Inspect the final original
+`create_sandbox` result and independently retrieve the expected sandbox before reporting success.
+If the client cannot complete its required confirmation, stop and report that limitation.
 
 Respect a genuine cancellation and report it. Do not change client capabilities, suppress the
 confirmation, or retry it blindly. This task does not authorize changes to connection permissions
